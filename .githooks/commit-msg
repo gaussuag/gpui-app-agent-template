@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+pwsh -NoProfile -File "$repo_root/scripts/check-commit-message.ps1" -MessageFile "$1"
