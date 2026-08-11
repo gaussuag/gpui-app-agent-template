@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "crates/app-core",
+    "crates/app-ui",
+    "crates/desktop",
+]
+default-members = ["crates/desktop"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+
+[workspace.dependencies]
+app-core = { path = "crates/app-core" }
+app-ui = { path = "crates/app-ui" }
+gpui = { version = "=0.2.2", default-features = false }
+gpui-component = { version = "=0.5.1", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+expect_used = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
+
+[profile.dev.package.gpui]
+opt-level = 3
+
+[profile.dev.package.gpui-component]
+opt-level = 3

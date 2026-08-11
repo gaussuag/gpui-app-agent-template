@@ -1,0 +1,42 @@
+# UI dependency policy
+
+## Baseline
+
+The authoritative versions are the exact requirements in the root
+`Cargo.toml`; `Cargo.lock` records the resolved package identities and registry
+checksums. GPUI and gpui-component form one bill of materials and are reviewed
+as a unit.
+
+The baseline permits one registry identity for `gpui` and one for
+`gpui-component`. `scripts/check-architecture.ps1` enforces that property.
+
+## Upgrade procedure
+
+1. Create a dependency-only branch.
+2. Read the target gpui-component release manifest and confirm its declared
+   GPUI version.
+3. Update both exact root requirements together.
+4. Regenerate and inspect `Cargo.lock`.
+5. Confirm `cargo metadata --locked` contains one registry identity for each UI
+   package.
+6. Run `scripts/check.ps1` on Windows.
+7. Launch the application and verify open, render, input, background completion,
+   reset/cancellation, window close, and process exit.
+8. Record breaking interface migrations and platform changes in the pull
+   request.
+
+## Git and fork escape hatch
+
+A feature unavailable in the registry baseline may justify a pinned git
+revision. Before adopting it, add an ADR containing:
+
+- upstream repository and exact revision;
+- component revision known to match it;
+- package identity strategy for gpui, gpui_platform, and gpui_macros;
+- fork delta and owner, if any;
+- Windows verification evidence;
+- upgrade and removal plan.
+
+Moving branches and unpinned git sources are not release inputs. Do not combine
+a `rev` source with a transitive unqualified git source unless package identity
+has been deliberately unified and verified.

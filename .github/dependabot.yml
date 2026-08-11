@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gpui-stack:
+        patterns:
+          - gpui
+          - gpui-component
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

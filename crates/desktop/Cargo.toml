@@ -1,0 +1,17 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "gpui-app-agent-template"
+path = "src/main.rs"
+
+[dependencies]
+app-ui.workspace = true
+
+[lints]
+workspace = true

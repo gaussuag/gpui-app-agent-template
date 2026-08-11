@@ -1,0 +1,15 @@
+[package]
+name = "app-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+app-core.workspace = true
+gpui.workspace = true
+gpui-component.workspace = true
+
+[lints]
+workspace = true
