@@ -159,9 +159,9 @@ an ADR-backed exception.
 - **MUST:** Keep paths, commands, and local Markdown links current and checked.
   Documentation explains reasons and non-obvious contracts instead of caching
   discoverable source detail.
-- **MUST:** Write or update an ADR for ownership, dependency direction,
-  protocol/persistence, shutdown, platform tier, unsafe boundary, GPUI source/
-  fork, or high-risk-pattern exceptions.
+- **MUST:** Write or update an [ADR](decisions/README.md) for ownership,
+  dependency direction, protocol/persistence, shutdown, platform tier, unsafe
+  boundary, GPUI source/fork, or high-risk-pattern exceptions.
 - **MUST:** Follow `docs/git-commit-policy.md`; each commit has one reason to
   revert and records direct evidence.
 

@@ -17,6 +17,9 @@
 6. Use [the task specification](docs/agent-task-template.md) for runtime changes
    or work spanning more than one module. Its acceptance evidence is the bound
    of the task; unresolved items remain incomplete.
+7. Read [the decision index](docs/decisions/README.md) before changing an owner,
+   dependency direction, persistence/protocol, shutdown, platform/unsafe
+   boundary, UI source, or source-risk exception.
 
 Before implementation, record the current chain in task context: entry,
 authoritative owner, side effect, background/foreground boundary, stale guard,

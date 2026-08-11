@@ -41,15 +41,17 @@ support claims.
 
 | Existing control | Status | Evidence in this repository |
 |---|---|---|
-| Single dependency direction | Implemented and partially mechanical | `docs/architecture.md`, `scripts/check-architecture.ps1` |
+| Single dependency direction | Implemented and mechanical | `docs/architecture.md`, exact workspace edge assertions in `scripts/check-architecture.ps1` |
 | UI-free state machine | Implemented and tested | `crates/app-core/src/lib.rs` |
 | Owned background task and stale-result gate | Implemented as a minimal example | `crates/app-ui/src/lib.rs` |
 | Exact GPUI/component BOM | Implemented and mechanical | `Cargo.toml`, `Cargo.lock`, dependency check |
 | Windows Tier 1 contract | Documented and compiled in CI | `docs/windows-platform.md`, `scripts/check.ps1` |
 | Strict Rust lint baseline | Implemented | root workspace lints |
 | One canonical local/CI gate | Implemented | `scripts/check.ps1`, Windows workflow |
-| Evidence-oriented task skeleton | Present but underspecified | `docs/agent-task-template.md` |
+| Evidence-oriented task specification | Implemented | `docs/agent-task-template.md`, lifecycle and ADR templates |
 | Atomic commit contract | Implemented and mechanical | `docs/git-commit-policy.md`, commit hook and CI check |
+| Scoped Agent navigation | Implemented and mechanically checked | root and five scoped `AGENTS.md` files, `scripts/check-agent-contract.ps1` |
+| High-risk source review | Implemented as a fail-closed signal | `scripts/check-source-risks.ps1`, ADR-backed allowlist |
 
 The template already constrains more than a minimal GPUI sample. Its remaining
 readiness gap is mainly operational: important rules are either absent, too
@@ -193,7 +195,9 @@ Each slice is an atomic commit under `docs/git-commit-policy.md`.
 - Commit: `f94f87a chore(repo): enforce git commit contract`.
 - Defines message semantics, atomicity, local validation, and CI range checks.
 
-### S1: Operating contract and scoped navigation
+### S1: Operating contract and scoped navigation — complete
+
+- Commit: `08cc2aa docs(agent): establish scoped operating contracts`.
 
 - Add one detailed `docs/agent-development-standard.md` as the normative rule
   source, adapted to this actual architecture and Windows/BOM baseline.
@@ -207,7 +211,9 @@ Each slice is an atomic commit under `docs/git-commit-policy.md`.
 context, and focused checks from every writable project boundary without
 reading unrelated rules.
 
-### S2: Task, lifecycle, decision, and review evidence
+### S2: Task, lifecycle, decision, and review evidence — complete
+
+- Commit: `b8079a2 docs(agent): add lifecycle and review evidence`.
 
 - Expand `docs/agent-task-template.md` with source facts, current chain,
   lifecycle/channel/data/error/privacy fields, scenario matrix, exclusions,
@@ -220,7 +226,9 @@ reading unrelated rules.
 **Done when:** every non-trivial task has a checkable place to record the
 research-mandated facts without duplicating the standard.
 
-### S3: Mechanical repository contract
+### S3: Mechanical repository contract — complete
+
+- Commit: `13c0852 ci(agent): enforce repository contracts`.
 
 - Add local Markdown-link and required-entry checks.
 - Add a high-risk source-pattern check and ADR-backed allowlist.
@@ -232,7 +240,7 @@ link, reversing a crate dependency, introducing a second UI package identity,
 or adding an unreviewed high-risk construct makes the canonical gate fail with
 an actionable message.
 
-### S4: Completion audit
+### S4: Completion audit — complete
 
 - Validate every commit introduced after `be2c445`.
 - Run formatter, Clippy, tests, architecture/Agent checks, and the explicit
@@ -244,25 +252,57 @@ an actionable message.
 the worktree is clean, and unverified runtime behavior remains labelled as
 unverified.
 
+## Completion audit
+
+Audit date: 2026-08-11. The implementation consists of five atomic commits
+after baseline `be2c445`, in the S0-S3 order recorded above plus
+`a33182c docs(agent): record readiness gap analysis`; this document update is
+the separate completion-audit commit.
+
+Current-state evidence:
+
+- all commits in `be2c445..HEAD` pass `scripts/check-commits.ps1`;
+- `scripts/check.ps1` passes rustfmt, Clippy, five tests, Agent/document/source-
+  risk contracts, policy fixtures, exact workspace dependency checks, registry
+  UI identity checks, and the explicit Windows MSVC build;
+- the policy fixtures prove both acceptance and rejection for commit messages,
+  unreviewed risky source, accepted ADR exceptions, and stale exceptions;
+- the current source-risk baseline contains zero allowlisted findings;
+- local Markdown links, required entry files, root routing pointers, and the
+  three-crate dependency graph are checked by the same script CI invokes.
+
+Intentional limits and unrun dynamic evidence:
+
+- no manual GUI smoke was rerun because these slices change repository
+  contracts and automation, not runtime UI behavior;
+- packaging/signing, performance, and accessibility were not run and are not
+  implied by the Windows compile;
+- the sample still has no real filesystem/network/database/device I/O, so it
+  does not claim a production shutdown coordinator or I/O recovery proof;
+- the source-risk scan is a narrow review trigger, not semantic proof of render
+  purity, cancellation correctness, or bounded memory;
+- no push, release, migration, credential change, or branch-protection change
+  was performed.
+
 ## Readiness completion criteria
 
-- [ ] Root instructions route every task to the correct conditional reference.
-- [ ] Every maintained code/automation boundary has a scoped owner contract.
-- [ ] One normative standard covers state ownership, render, async, lifecycle,
+- [x] Root instructions route every task to the correct conditional reference.
+- [x] Every maintained code/automation boundary has a scoped owner contract.
+- [x] One normative standard covers state ownership, render, async, lifecycle,
       channels, capacity, errors, privacy, platform, dependencies, tests, and
       evidence without competing copies.
-- [ ] Non-trivial work uses a task record containing the current success,
-      failure, stale/cancel, repaint, and shutdown chain as applicable.
-- [ ] Every long-lived resource has a complete lifecycle ledger row.
-- [ ] Every channel and large-data path has declared capacity and overflow
-      semantics before implementation.
-- [ ] ADR triggers and a reusable decision template exist.
-- [ ] Documentation entry points and local links are checked mechanically.
-- [ ] High-risk concurrency/process constructs fail closed unless an ADR-backed
+- [x] Non-trivial work is required to use a task record containing the current
+      success, failure, stale/cancel, repaint, and shutdown chain as applicable.
+- [x] Every current long-lived resource has a complete lifecycle ledger row.
+- [x] Every future channel and large-data path is required to declare capacity
+      and overflow semantics before implementation.
+- [x] ADR triggers and a reusable decision template exist.
+- [x] Documentation entry points and local links are checked mechanically.
+- [x] High-risk concurrency/process constructs fail closed unless an ADR-backed
       exception is present.
-- [ ] Local and CI gates use the same scripts and exact dependency graph.
-- [ ] Commit messages and commit grouping follow the repository contract.
-- [ ] The final handoff reports each check separately and identifies unrun
+- [x] Local and CI gates use the same scripts and exact dependency graph.
+- [x] Commit messages and commit grouping follow the repository contract.
+- [x] The final handoff contract reports each check separately and identifies unrun
       smoke, packaging, performance, accessibility, and real I/O validation.
 
 ## Explicit non-goals

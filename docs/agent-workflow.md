@@ -12,8 +12,8 @@ file defines when work may advance to the next step.
    entry used for that area.
 4. Read `rust-toolchain.toml`, root UI dependencies, and the relevant lockfile
    package identities before using a GPUI API.
-5. Load the conditional architecture, dependency, Windows, or decision records
-   named by the root contract.
+5. Load the conditional architecture, dependency, Windows, or
+   [decision records](decisions/README.md) named by the root contract.
 
 **Complete when:** task notes identify the checkout facts, applicable scoped
 rules, current dependency lineage, existing user changes, and authoritative
@@ -58,9 +58,10 @@ Find an adjacent pattern and test seam before creating a new abstraction. Add a
 service trait or adapter seam only when a real production dependency varies and
 a second implementation, normally a deterministic test adapter, is required.
 
-Write or update an ADR before changing state/resource ownership, dependency
-direction, protocol/persistence format, shutdown semantics, platform tier,
-unsafe boundary, GPUI source/fork, or a high-risk-pattern exception.
+Write or update an [ADR](decisions/README.md) before changing state/resource
+ownership, dependency direction, protocol/persistence format, shutdown
+semantics, platform tier, unsafe boundary, GPUI source/fork, or a
+high-risk-pattern exception.
 
 **Complete when:** the requested result, excluded work, invariants, implementation
 slices, and direct acceptance evidence are checkable before code changes begin.

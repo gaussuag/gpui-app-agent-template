@@ -42,6 +42,7 @@ if (Test-Path -LiteralPath $rootContractPath) {
         "docs/dependency-policy.md",
         "docs/windows-platform.md",
         "docs/git-commit-policy.md",
+        "docs/decisions/README.md",
         "scripts/check.ps1"
     )) {
         if (-not $rootContract.Contains($pointer)) {
