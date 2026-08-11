@@ -14,10 +14,13 @@ commits.
 Before opening a pull request:
 
 1. Explain the user-visible outcome and failure behavior.
-2. Update tests at the affected module interface.
-3. Run `scripts/check.ps1` from Windows PowerShell.
-4. Update architecture or dependency records when an invariant changes.
-5. Include verification results in the pull request description.
+2. Fill [the task specification](docs/agent-task-template.md) for runtime or
+   multi-module work.
+3. Update tests at the affected module interface.
+4. Update the lifecycle inventory and an ADR when their documented triggers
+   apply.
+5. Run `scripts/check.ps1` from Windows PowerShell.
+6. Include exact verification and unrun dynamic checks in the pull request.
 
 Dependency upgrades follow `docs/dependency-policy.md` and must not be mixed
 with feature work.

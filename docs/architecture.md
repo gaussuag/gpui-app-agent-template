@@ -40,14 +40,22 @@ waits on channels, sleeps, or acquires long-lived locks.
 
 ## Lifecycle ledger
 
-| Resource | Owner | Start | Stop/cancel | Failure surface |
-|---|---|---|---|---|
-| Main window | GPUI application | `app-ui::run` | Window close/application quit | Startup error to stderr |
-| Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced, reset, or entity drop | Extend `WorkStatus` for fallible work |
-| Domain state | `TemplateView` | Entity construction | Entity drop | Commands return explicit effects |
+| Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
+|---|---|---|---|---|---|---|---|
+| Main window | GPUI application | `app-ui::run` | Window close/application quit | GPUI platform contract | No application data to flush | Startup error to stderr; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
+| Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
+| Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
 
 Every new task, subscription, worker, channel, watcher, or native handle adds a
-row. If its stop path cannot be named, its lifecycle design is incomplete.
+row with all fields. Persistent writes and temporary artifacts are resources too.
+If an owner, deadline/contract, error destination, or late-cleanup path cannot be
+named, lifecycle design is incomplete. Use
+[the full ledger template](templates/lifecycle-ledger.md) when resources interact.
+
+The sample has no fallible external I/O and therefore does not demonstrate a
+complete error or shutdown coordinator. Introduce those protocols with the first
+real resource that requires recovery, flush, join, or confirmation; do not infer
+them from this CPU-only example.
 
 ## Testing strategy
 

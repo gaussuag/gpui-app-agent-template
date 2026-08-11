@@ -53,13 +53,27 @@ Clippy, tests, the dependency/architecture gate, and an explicit
 crates/app-core/   Domain state and effects; never depends on GPUI
 crates/app-ui/     The only GPUI and gpui-component adapter
 crates/desktop/    Windows executable and process-level startup
-docs/              Architecture, dependency, platform, and agent guidance
+docs/              Architecture, decisions, templates, and Agent guidance
 scripts/           Canonical local verification and run commands
 ```
 
 Read [the architecture](docs/architecture.md) before adding a subsystem. Read
 [the dependency policy](docs/dependency-policy.md) before changing the UI
 stack. Coding agents start with [AGENTS.md](AGENTS.md).
+
+## Code Agent entry
+
+Agents begin at [the root operating contract](AGENTS.md), then read the nearest
+scoped `AGENTS.md`. Runtime and multi-module tasks follow
+[the Agent workflow](docs/agent-workflow.md), fill
+[the task specification](docs/agent-task-template.md), and apply
+[the development standard](docs/agent-development-standard.md). Changes to
+ownership, shutdown, persistence/protocols, platform tier, unsafe boundaries, or
+the UI dependency source use [an ADR](docs/decisions/README.md).
+
+The rules describe supervised repository work; they do not authorize pushes,
+releases, user-data migration, or credential changes. Executed checks and unrun
+dynamic validation are reported separately.
 
 ## Starting a real product
 
