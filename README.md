@@ -44,8 +44,10 @@ application.
 ```
 
 That command is the local and CI definition of done. It runs formatting,
-Clippy, tests, the dependency/architecture gate, and an explicit
-`x86_64-pc-windows-msvc` build with `--locked`.
+Clippy, tests, Agent/document/source-risk contracts, dependency architecture,
+policy self-tests, and an explicit `x86_64-pc-windows-msvc` build with
+`--locked`. These static gates do not replace the separately reported manual
+Windows smoke, packaging, performance, or accessibility checks.
 
 ## Repository map
 

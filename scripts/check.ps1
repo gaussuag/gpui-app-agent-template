@@ -29,6 +29,13 @@ try {
     Invoke-CargoStep -Name "tests" -Arguments @(
         "test", "--workspace", "--all-features", "--locked"
     )
+    Write-Host "==> Agent repository contracts"
+    & (Join-Path $PSScriptRoot "check-agent-contract.ps1")
+    Write-Host "==> source risk policy"
+    & (Join-Path $PSScriptRoot "check-source-risks.ps1")
+    Write-Host "==> policy script self-tests"
+    & (Join-Path $PSScriptRoot "test-policy-scripts.ps1")
+    Write-Host "==> architecture and dependency identity"
     & (Join-Path $PSScriptRoot "check-architecture.ps1")
     Invoke-CargoStep -Name "Windows MSVC build" -Arguments @(
         "build", "--package", "desktop", "--target", "x86_64-pc-windows-msvc", "--locked"

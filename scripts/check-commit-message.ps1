@@ -38,7 +38,7 @@ if ($subject -match '^Merge\s+') {
 $errors = [System.Collections.Generic.List[string]]::new()
 $subjectPattern = '^(feat|fix|refactor|perf|test|docs|build|ci|chore|revert)(\([a-z0-9][a-z0-9-]*\))?(!)?: [a-z0-9][^\r\n]*$'
 
-if ($subject -notmatch $subjectPattern) {
+if ($subject -cnotmatch $subjectPattern) {
     $errors.Add("subject must match 'type(scope): lowercase imperative summary'")
 }
 if ($subject.Length -gt 72) {

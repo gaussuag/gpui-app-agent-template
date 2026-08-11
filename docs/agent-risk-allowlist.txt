@@ -1,0 +1,8 @@
+# Machine-readable exceptions for scripts/check-source-risks.ps1.
+#
+# Format: relative-source-path|risk-id|accepted-adr-path
+# Example: crates/app-ui/src/service.rs|detached-task|docs/decisions/0002-service-lifetime.md
+#
+# Keep this list empty unless an accepted ADR names the owner, lifecycle,
+# failure behavior, validation, and removal condition. The checker rejects stale
+# exceptions after the risky source shape is removed.
