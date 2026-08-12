@@ -1,5 +1,21 @@
 # Code Agent readiness plan
 
+## Record status
+
+This file is the completed readiness delivery record audited on 2026-08-11,
+not the live capability index or an open backlog. Its baseline, gaps, slices,
+and completion evidence remain frozen to that audit. Current repository facts
+are routed from `AGENTS.md`; current testing and product setup are defined in
+`docs/testing-standard.md` and `docs/product-identity.md`.
+
+Subsequent work added the GPUI headless suite, native first-frame/close smoke,
+explicit last-window exit, and exact Windows manifest requirements. Commit
+`e44f0a9 feat(repo): add in-place product initialization` then added Cargo-owned
+product identity, Windows ICON/VERSIONINFO, transactional in-place setup, and a
+generated-repository Release fixture. Those later capabilities supersede any
+apparently current test counts or unrun-smoke statements in the historical
+audit below.
+
 ## Scope and evidence
 
 This plan turns the static findings in `report-awesome-gpui` into repository
@@ -37,7 +53,7 @@ This is supervised development readiness. It does not authorize autonomous
 pushes, releases, destructive migrations, credential changes, or production
 support claims.
 
-## Current strengths
+## Baseline strengths at planning time
 
 | Existing control | Status | Evidence in this repository |
 |---|---|---|
@@ -53,9 +69,10 @@ support claims.
 | Scoped Agent navigation | Implemented and mechanically checked | root and five scoped `AGENTS.md` files, `scripts/check-agent-contract.ps1` |
 | High-risk source review | Implemented as a fail-closed signal | `scripts/check-source-risks.ps1`, ADR-backed allowlist |
 
-The template already constrains more than a minimal GPUI sample. Its remaining
-readiness gap is mainly operational: important rules are either absent, too
-compressed in the root file, or dependent on manual memory.
+At that baseline, the template already constrained more than a minimal GPUI
+sample. Its remaining readiness gap was mainly operational: important rules
+were either absent, too compressed in the root file, or dependent on manual
+memory.
 
 ## Evidence from all 18 reports
 
@@ -252,14 +269,14 @@ an actionable message.
 the worktree is clean, and unverified runtime behavior remains labelled as
 unverified.
 
-## Completion audit
+## 2026-08-11 completion audit
 
 Audit date: 2026-08-11. The implementation consists of five atomic commits
 after baseline `be2c445`, in the S0-S3 order recorded above plus
 `a33182c docs(agent): record readiness gap analysis`; this document update is
 the separate completion-audit commit.
 
-Current-state evidence:
+Evidence collected for that audit:
 
 - all commits in `be2c445..HEAD` pass `scripts/check-commits.ps1`;
 - `scripts/check.ps1` passes rustfmt, Clippy, five tests, Agent/document/source-
@@ -271,7 +288,7 @@ Current-state evidence:
 - local Markdown links, required entry files, root routing pointers, and the
   three-crate dependency graph are checked by the same script CI invokes.
 
-Intentional limits and unrun dynamic evidence:
+Limits recorded by that audit:
 
 - no manual GUI smoke was rerun because these slices change repository
   contracts and automation, not runtime UI behavior;
@@ -307,7 +324,9 @@ Intentional limits and unrun dynamic evidence:
 
 ## Explicit non-goals
 
-- Building a project-generator CLI or packaging/signing pipeline.
+- Building a second-directory project-generator CLI or packaging/signing
+  pipeline. The later in-place initializer keeps GitHub Template as the single
+  template source and does not contradict this boundary.
 - Adding speculative filesystem, network, database, device, runtime, or plugin
   abstractions before two real adapters exist.
 - Claiming a generic shutdown coordinator is implemented before the product has
