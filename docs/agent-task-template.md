@@ -1,8 +1,10 @@
 # Agent task specification
 
-Copy this template into the issue, task record, or change note for work that
-changes runtime behavior or spans more than one module. Keep the record with the
-task rather than committing a new copy for routine work. Apply
+Copy this template into the issue, task record, or change note for a full change:
+multi-module work or changes to async/resource lifecycle, platform behavior,
+dependencies, protocol/persistence, privacy, or unsafe boundaries. A focused
+single-owner change uses the compact lane record in `agent-workflow.md`. Keep the
+record with the task rather than committing a new copy for routine work. Apply
 [the Agent development standard](agent-development-standard.md); this template
 collects evidence and does not replace it.
 

@@ -5,9 +5,9 @@
 1. Read the request, `git status`, this file, the root manifest, and the nearest
    scoped `AGENTS.md` before editing. Current source and `Cargo.lock` outrank
    plans, comments, old discussion, and remembered APIs.
-2. For any runtime, state, async, error, render, lifecycle, or multi-module
-   change, follow [the Agent workflow](docs/agent-workflow.md) and apply
-   [the development standard](docs/agent-development-standard.md).
+2. Classify work with [the Agent workflow](docs/agent-workflow.md) as read-only,
+   focused change, or full change before editing. Every change task follows that
+   workflow and [the development standard](docs/agent-development-standard.md).
 3. Before changing behavior, read and apply
    [the automated testing standard](docs/testing-standard.md). Pair the behavior
    and its automated tests in the same change.
@@ -19,9 +19,11 @@
    windows, native APIs, paths, packaging, installers, or platform code.
 7. Read [the product identity contract](docs/product-identity.md) before changing
    product names, the desktop binary, icons, PE resources, or initialization.
-8. Use [the task specification](docs/agent-task-template.md) for runtime changes
-   or work spanning more than one module. Its acceptance evidence is the bound
-   of the task; unresolved items remain incomplete.
+8. Use [the task specification](docs/agent-task-template.md) for full changes:
+   multi-module work or changes to async/resource lifecycle, platform behavior,
+   dependencies, protocol/persistence, privacy, or unsafe boundaries. A focused
+   change uses the compact record in the workflow. Unresolved acceptance items
+   remain incomplete.
 9. Read [the decision index](docs/decisions/README.md) before changing an owner,
    dependency direction, persistence/protocol, shutdown, platform/unsafe
    boundary, UI source, or source-risk exception.

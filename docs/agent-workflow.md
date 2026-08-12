@@ -4,6 +4,18 @@ This is the ordered recipe for repository change tasks. The normative rules are
 in [the Agent development standard](agent-development-standard.md); this file
 defines when work may advance to the next step.
 
+## Choose the task lane
+
+| Lane | Use when | Required record and delivery |
+|---|---|---|
+| Read-only | Explain, diagnose, or review without modifying repository files | Establish current facts, report evidence and unverified claims, and do not commit. Stop before the change workflow below. |
+| Focused change | One owner and module; does not change async/resource lifecycle, platform behavior, dependencies, protocol/persistence, privacy, or an unsafe boundary | Record outcome, owner, stable test seam, atomic slice(s), exact evidence, and exclusions in task context. Follow every applicable step below. |
+| Full change | Multiple modules, or any async/resource lifecycle, platform, dependency, protocol/persistence, privacy, or unsafe-boundary change | Use [the full task specification](agent-task-template.md) and follow every step below. |
+
+If investigation turns a read-only task into a change, or a focused change
+crosses a full-change boundary, reclassify it before editing further. The lane
+changes evidence depth, not architecture, test, commit, or permission standards.
+
 ## 1. Establish current facts
 
 1. Read the root and nearest scoped `AGENTS.md`.
@@ -48,7 +60,8 @@ applicable with current-source evidence.
 
 ## 3. Bound the change
 
-Use [the task specification](agent-task-template.md) to record:
+For a focused change, record the compact lane fields in task context. For a full
+change, use [the task specification](agent-task-template.md) to record:
 
 - user-observable outcome and recovery behavior;
 - included modules/platform tier and explicit exclusions;

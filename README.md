@@ -99,13 +99,13 @@ stack. Coding agents start with [AGENTS.md](AGENTS.md).
 ## Code Agent entry
 
 Agents begin at [the root operating contract](AGENTS.md), then read the nearest
-scoped `AGENTS.md`. Runtime and multi-module tasks follow
-[the Agent workflow](docs/agent-workflow.md), fill
-[the task specification](docs/agent-task-template.md), and apply
-[the development standard](docs/agent-development-standard.md) and
-[the automated testing standard](docs/testing-standard.md). Changes to
-ownership, shutdown, persistence/protocols, platform tier, unsafe boundaries, or
-the UI dependency source use [an ADR](docs/decisions/README.md).
+scoped `AGENTS.md`. Read-only, focused-change, and full-change lanes are defined
+by [the Agent workflow](docs/agent-workflow.md). Every change applies
+[the development standard](docs/agent-development-standard.md); full changes use
+[the task specification](docs/agent-task-template.md), and behavior changes use
+[the automated testing standard](docs/testing-standard.md). Changes to ownership,
+shutdown, persistence/protocols, platform tier, unsafe boundaries, or the UI
+dependency source use [an ADR](docs/decisions/README.md).
 
 The rules describe supervised repository work; they do not authorize pushes,
 releases, user-data migration, or credential changes. Executed checks and unrun
@@ -123,8 +123,8 @@ dynamic validation are reported separately.
 6. Pair every behavior change with tests at the lowest stable seam; add
    failure/cancel/stale/owner-drop coverage and a lifecycle owner where
    applicable.
-7. Complete [the task specification template](docs/agent-task-template.md) for
-   non-trivial agent work.
+7. Use the focused or full Agent task lane required by
+   [the workflow](docs/agent-workflow.md).
 
 ## Dependency upgrades
 

@@ -14,8 +14,9 @@ commits.
 Before opening a pull request:
 
 1. Explain the user-visible outcome and failure behavior.
-2. Fill [the task specification](docs/agent-task-template.md) for runtime or
-   multi-module work.
+2. Select the focused or full lane in [the Agent workflow](docs/agent-workflow.md);
+   fill [the task specification](docs/agent-task-template.md) when the full lane
+   applies.
 3. Follow [the automated testing standard](docs/testing-standard.md): record the
    test seam and expected red result, then update tests in the same behavior
    change.

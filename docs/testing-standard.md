@@ -105,9 +105,10 @@ hierarchy until repeated product tests demonstrate that need.
 
 ## Agent workflow and evidence
 
-Before implementation, add a test-plan row to the task specification naming the
-changed contract, stable seam, lowest layer, red evidence, scenarios, and reason
-for omitted higher layers. During implementation:
+Before implementation, add a test-plan row to the full task specification or
+the equivalent compact focused-change record. Name the changed contract, stable
+seam, lowest layer, red evidence, scenarios, and reason for omitted higher
+layers. During implementation:
 
 1. run the narrow test and preserve its expected red failure in task notes;
 2. implement the smallest behavior through the production owner/interface;

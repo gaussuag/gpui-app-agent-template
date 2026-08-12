@@ -169,6 +169,28 @@ an ADR-backed exception.
   uncommitted handoff. Read-only, diagnostic, and review tasks do not commit.
   Local delivery does not authorize push, PR, merge, release, or history rewrite.
 
+### Agent rule and skill hygiene
+
+- **MUST:** Add an always-loaded root or scoped Agent rule only when the trap is
+  non-obvious from current source, repeatedly encountered, and specific enough
+  to change a read, edit, or verification action. A one-directory rule belongs
+  in that directory's scoped `AGENTS.md`.
+- **SHOULD:** Express deterministic invariants with types, tests, lints, or the
+  existing repository checkers. Agent documents route to those controls and
+  explain non-obvious reasons; they do not cache discoverable file maps, counts,
+  line totals, temporary versions, or planned future architecture.
+- **SHOULD:** Add or materially expand Agent rules as a dedicated policy slice
+  after the pattern is evidenced. Do not turn a one-off observation from an
+  unrelated feature or fix into an always-loaded rule.
+- **MUST:** A repo-local Skill owns only a repeated, bounded, conditionally
+  invoked workflow that benefits from progressive references, scripts, assets,
+  or templates. Its trigger, side effects, limits, and repository-document
+  fallback are explicit. Always-on repository delivery rules remain in
+  `AGENTS.md` and this workflow.
+- **MUST:** A required external Agent tool or Skill has an ordinary repository
+  document/script fallback. Repository work never depends on one Agent host's
+  private installation.
+
 Before completion, account for every applicable item:
 
 - current checkout, GPUI/component identity, scoped rules, and user changes;
