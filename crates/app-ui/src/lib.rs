@@ -4,8 +4,8 @@ use std::{cell::Cell, rc::Rc};
 
 use app_core::{AppState, Command, Effect, Snapshot, WorkStatus};
 use gpui::{
-    AppContext as _, Application, Bounds, Context, FocusHandle, Render, Task, Window, WindowBounds,
-    WindowOptions, actions,
+    App, AppContext as _, Application, Bounds, Context, FocusHandle, Global, Render, Subscription,
+    Task, Window, WindowBounds, WindowOptions, actions,
     prelude::{InteractiveElement as _, IntoElement, ParentElement as _, Styled as _},
     px, size,
 };
@@ -28,6 +28,23 @@ enum LaunchMode {
     Smoke,
 }
 
+struct ApplicationLifecycle {
+    _last_window_closed: Subscription,
+}
+
+impl Global for ApplicationLifecycle {}
+
+fn install_last_window_quit_policy(cx: &mut App, mut request_quit: impl FnMut(&mut App) + 'static) {
+    let last_window_closed = cx.on_window_closed(move |cx| {
+        if cx.windows().is_empty() {
+            request_quit(cx);
+        }
+    });
+    cx.set_global(ApplicationLifecycle {
+        _last_window_closed: last_window_closed,
+    });
+}
+
 /// Launch the desktop application and its main window.
 pub fn run() {
     run_with_mode(LaunchMode::Interactive);
@@ -48,6 +65,7 @@ fn run_with_mode(mode: LaunchMode) -> bool {
 
     Application::new().run(move |cx| {
         gpui_component::init(cx);
+        install_last_window_quit_policy(cx, |cx| cx.quit());
 
         let bounds = Bounds::centered(None, size(px(920.0), px(620.0)), cx);
         let opened = cx.open_window(
@@ -72,7 +90,6 @@ fn run_with_mode(mode: LaunchMode) -> bool {
                             let snapshot = verified_view.read(cx).state.snapshot();
                             verified_result.set(snapshot.counter == 1);
                             window.remove_window();
-                            cx.quit();
                         });
                         window.refresh();
                     });

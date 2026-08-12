@@ -19,3 +19,4 @@ of silently changing the behavior it documents.
 Current decisions:
 
 - [ADR 0001: Registry-first GPUI bill of materials](0001-ui-bom.md)
+- [ADR 0002: Application-owned last-window exit](0002-last-window-exit.md)

@@ -32,7 +32,7 @@ layer only for integration risk that the lower layer cannot detect:
 | Pure core | policy, validation, state machine, revision rules | `AppState::dispatch` and `snapshot` | `scripts/test.ps1 -Suite core` |
 | Fake adapter | real filesystem/network/database/device boundary with variable outcomes | typed request/result at the adapter interface | package-focused Cargo test |
 | GPUI headless | Entity ownership, typed Action/Event, focus/input, component wiring, Task completion, notify/render state | public state/snapshot/event plus `TestAppContext` | `scripts/test.ps1 -Suite gpui` |
-| Windows native smoke | process startup, real window/backend, first frame, one Action, close and bounded exit | exit code plus the smoke success marker | `scripts/smoke.ps1` |
+| Windows native smoke | process startup, real window/backend, first frame, one Action, native last-window close and bounded exit | self-check marker plus zero exit codes for the finite and interactive launches | `scripts/smoke.ps1` |
 | Manual/specialized | DPI, visual fidelity, accessibility, physical devices, installer/signing | named artifact or checklist result | report separately |
 
 The presence of test source or a workflow is not proof that tests ran. The

@@ -62,9 +62,67 @@ try {
     finally {
         $process.Dispose()
     }
+
+    Write-Host "==> native last-window close smoke"
+    $closeStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $closeStartInfo.FileName = $executable
+    $closeStartInfo.WorkingDirectory = $root
+    $closeStartInfo.UseShellExecute = $false
+    $closeStartInfo.RedirectStandardOutput = $true
+    $closeStartInfo.RedirectStandardError = $true
+    $closeStartInfo.CreateNoWindow = $true
+
+    $closeProcess = [System.Diagnostics.Process]::new()
+    $closeProcess.StartInfo = $closeStartInfo
+    $closeProcessStarted = $false
+    try {
+        if (-not $closeProcess.Start()) {
+            throw "Windows close smoke process did not start."
+        }
+        $closeProcessStarted = $true
+
+        $windowDeadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        do {
+            $closeProcess.Refresh()
+            if ($closeProcess.HasExited) {
+                $stdout = $closeProcess.StandardOutput.ReadToEnd()
+                $stderr = $closeProcess.StandardError.ReadToEnd()
+                throw "Windows close smoke exited before opening its main window with code $($closeProcess.ExitCode).`nstdout:`n$stdout`nstderr:`n$stderr"
+            }
+
+            if ($closeProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+                break
+            }
+
+            [void]$closeProcess.WaitForExit(50)
+        } while ([DateTime]::UtcNow -lt $windowDeadline)
+
+        if ($closeProcess.MainWindowHandle -eq [IntPtr]::Zero) {
+            throw "Windows close smoke did not observe a main window within ${TimeoutSeconds}s."
+        }
+        if (-not $closeProcess.CloseMainWindow()) {
+            throw "Windows close smoke could not request main-window closure."
+        }
+        if (-not $closeProcess.WaitForExit($TimeoutSeconds * 1000)) {
+            throw "Windows close smoke process did not exit within ${TimeoutSeconds}s after its main window closed."
+        }
+
+        $stdout = $closeProcess.StandardOutput.ReadToEnd()
+        $stderr = $closeProcess.StandardError.ReadToEnd()
+        if ($closeProcess.ExitCode -ne 0) {
+            throw "Windows close smoke failed with exit code $($closeProcess.ExitCode).`nstdout:`n$stdout`nstderr:`n$stderr"
+        }
+    }
+    finally {
+        if ($closeProcessStarted -and -not $closeProcess.HasExited) {
+            $closeProcess.Kill()
+            $closeProcess.WaitForExit()
+        }
+        $closeProcess.Dispose()
+    }
 }
 finally {
     Pop-Location
 }
 
-Write-Host "Windows first-frame smoke passed."
+Write-Host "Windows first-frame and last-window close smoke passed."

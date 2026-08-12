@@ -12,10 +12,10 @@ desktop -> app-ui -> app-core
 while state transitions, revisions, and stale-result rules remain local. It has
 no hypothetical adapter because its dependencies are in-process and pure.
 
-`app-ui` is the GPUI adapter. It owns entities, windows, render projection, and
-task lifetimes. Product filesystem, database, HTTP, or device integrations
-should introduce a seam only when a production adapter and a test adapter both
-exist.
+`app-ui` is the GPUI adapter. It owns entities, windows, the application-level
+last-window exit policy, render projection, and task/subscription lifetimes.
+Product filesystem, database, HTTP, or device integrations should introduce a
+seam only when a production adapter and a test adapter both exist.
 
 `desktop` is process glue. It may choose platform startup flags and call the UI
 launcher, but it does not contain application state or rendering.
@@ -42,7 +42,8 @@ waits on channels, sleeps, or acquires long-lived locks.
 
 | Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
 |---|---|---|---|---|---|---|---|
-| Main window | GPUI application | `app-ui::run` or finite `run_smoke` | Window close/application quit; smoke removes its own window | Smoke process deadline; interactive mode follows GPUI platform contract | No application data to flush | Startup error to stderr; smoke returns failure; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
+| Main window | GPUI application | `app-ui::run` or finite `run_smoke` | GPUI removes the closed window; the application policy requests quit only when no windows remain | 15-second native smoke deadlines for first-frame self-check and interactive last-window close | No application data to flush | Startup error to stderr; smoke returns failure; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
+| Last-window close `Subscription` | App-global `ApplicationLifecycle` | `run_with_mode` after gpui-component initialization | One application-lifetime observer; no stale identity required | Event-driven on the GPUI foreground context | Dropping the App-global owner unsubscribes; no flush | Infallible zero-window check; process-level timeout reports a missing exit | Observer checks `cx.windows().is_empty()` and calls `cx.quit()`; App shutdown drops the owner |
 | Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
 | Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
 
@@ -64,10 +65,12 @@ them from this CPU-only example.
 - `scripts/test.ps1 -Suite gpui` enables GPUI `test-support`, initializes the
   real gpui-component globals, and tests the production Entity through typed
   Actions, a real Button click, deterministic Task drain/cancel, and owner drop.
-- `scripts/smoke.ps1` is a distinct native-backend layer: the production window
+- `scripts/smoke.ps1` is a distinct native-backend layer. Its finite self-check
   reaches a frame, handles a typed Action, verifies state on a second frame, and
-  performs bounded close/exit. Specialized visual, DPI, accessibility, and
-  installer evidence remains separately named.
+  exits through the last-window policy. A second normal launch receives a native
+  main-window close request and must exit within the process deadline.
+  Specialized visual, DPI, accessibility, and installer evidence remains
+  separately named.
 - Introduce a deterministic fake clock/filesystem/backend only when the real
   production dependency varies; do not expose internal seams solely for tests.
 

@@ -4,8 +4,8 @@
 
 Windows x64 with the MSVC toolchain is Tier 1 for this repository. Tier 1 means
 every change must compile in Windows CI, pass the automated native first-frame
-smoke, and product releases must pass the specialized manual checklist on a
-supported Windows version.
+and last-window close smoke, and product releases must pass the specialized
+manual checklist on a supported Windows version.
 
 This is a repository-owned tier. GPUI is pre-1.0, so upstream backend presence
 or another application's Windows build is not sufficient evidence for this
@@ -34,17 +34,23 @@ project.
 
 ## Automated native smoke
 
-`scripts/smoke.ps1` starts the built executable with the internal
-`--smoke-test` mode and a 15-second process deadline. The application opens the
-production GPUI/gpui-component window, completes a real frame, dispatches the
-production `Increment` Action, verifies its state on the following frame,
-removes the window, and quits. Success requires both exit code zero and the
-`GPUI_SMOKE_OK` marker; timeout terminates only the process started by the script.
+`scripts/smoke.ps1` runs two bounded checks against the built executable:
 
-This proves process startup, native window/backend initialization, first-frame
-rendering, Action routing, state projection, and bounded close/exit. It does not
-prove pixel appearance, DPI behavior, accessibility, packaging, or release
-subsystem behavior.
+1. The internal `--smoke-test` mode opens the production
+   GPUI/gpui-component window, completes a real frame, dispatches the production
+   `Increment` Action, verifies its state on the following frame, and removes
+   the window. The shared last-window policy requests application quit. Success
+   requires exit code zero and the `GPUI_SMOKE_OK` marker.
+2. A normal interactive launch waits for a real main-window handle, sends the
+   standard main-window close request, and requires the process to exit with
+   code zero within 15 seconds.
+
+A timeout terminates only the process started by the script. Together these
+checks prove process startup, native window/backend initialization, first-frame
+rendering, Action routing, state projection, application-directed last-window
+exit, native close routing, and bounded process termination. They do not prove
+pixel appearance, DPI behavior, accessibility, packaging, or release subsystem
+behavior.
 
 Run it directly with:
 
@@ -54,6 +60,18 @@ Run it directly with:
 
 The canonical `scripts/check.ps1` builds the Windows target and then runs this
 smoke with `-SkipBuild`; CI therefore executes the same path.
+
+## Application exit policy
+
+`app-ui` owns an application-lifetime `on_window_closed` subscription. After
+GPUI removes a closed window, the callback checks the authoritative application
+window collection and calls `cx.quit()` only when it is empty. The subscription
+is retained by an App-global lifecycle owner rather than detached.
+
+This policy makes closing the last window an application contract instead of an
+assumption about the current GPUI Windows backend. If the template later owns
+resources that require confirmation, drain, flush, join, or cleanup, this quit
+request must enter the shared shutdown coordinator before process exit.
 
 ## Specialized release checklist
 
