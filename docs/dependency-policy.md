@@ -10,6 +10,30 @@ as a unit.
 The baseline permits one registry identity for `gpui` and one for
 `gpui-component`. `scripts/check-architecture.ps1` enforces that property.
 
+## Resolved feature contract
+
+Cargo unions features enabled through every dependency edge.
+`default-features = false` on this workspace's direct GPUI edge does not mean
+the resolved GPUI package has no default features: in the reviewed BOM,
+gpui-component enables `gpui/default`. Treat the resolved dependency graph as
+authoritative and inspect it during every UI BOM upgrade.
+
+`windows-manifest` is an explicit project requirement. It is enabled directly
+so the expected Windows DPI and Common Controls manifest behavior does not
+depend on a transitive default. This does not disable features enabled through
+other dependency edges.
+
+Inspect the production Windows feature graph with:
+
+```powershell
+cargo tree `
+  --locked `
+  --package desktop `
+  --target x86_64-pc-windows-msvc `
+  -e features `
+  -i gpui@0.2.2
+```
+
 ## Upgrade procedure
 
 1. Create a dependency-only branch.
