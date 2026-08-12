@@ -9,6 +9,8 @@ Dependabot, issue forms, and review templates.
   commit SHAs with a readable release comment where available.
 - Windows x64 MSVC is the required CI tier. Workflows call repository scripts so
   local and CI definitions of done remain identical.
+- Required CI executes the explicit `app-ui` GPUI headless suite and Windows
+  process smoke. It must not rely on a workspace default that can omit either.
 - Fetch only the Git history required by commit-policy checks. Do not add secrets
   or write permissions to untrusted pull-request execution.
 - Templates collect evidence and link to canonical standards; they do not copy

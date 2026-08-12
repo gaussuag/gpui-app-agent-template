@@ -13,6 +13,8 @@ $requiredFiles = @(
     ".github/AGENTS.md",
     "docs/agent-workflow.md",
     "docs/agent-development-standard.md",
+    "docs/testing-standard.md",
+    "docs/testing-research.md",
     "docs/agent-task-template.md",
     "docs/architecture.md",
     "docs/dependency-policy.md",
@@ -21,7 +23,9 @@ $requiredFiles = @(
     "docs/decisions/README.md",
     "docs/templates/adr.md",
     "docs/templates/lifecycle-ledger.md",
-    "docs/agent-risk-allowlist.txt"
+    "docs/agent-risk-allowlist.txt",
+    "scripts/test.ps1",
+    "scripts/smoke.ps1"
 )
 
 $errors = [System.Collections.Generic.List[string]]::new()
@@ -37,6 +41,7 @@ if (Test-Path -LiteralPath $rootContractPath) {
     foreach ($pointer in @(
         "docs/agent-workflow.md",
         "docs/agent-development-standard.md",
+        "docs/testing-standard.md",
         "docs/agent-task-template.md",
         "docs/architecture.md",
         "docs/dependency-policy.md",

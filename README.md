@@ -11,6 +11,8 @@ GPUI and gives coding agents mechanical architecture and delivery checks.
 - A UI-free state machine in `app-core`.
 - A single GPUI adapter in `app-ui` with owned background task cancellation and
   stale-result rejection.
+- GPUI `test-support` with typed Action, real gpui-component click,
+  deterministic async/cancel, and owner-drop tests.
 - A thin Windows process entry point in `desktop`.
 - Windows CI, architecture checks, strict linting, and an agent operating
   contract.
@@ -44,10 +46,19 @@ application.
 ```
 
 That command is the local and CI definition of done. It runs formatting,
-Clippy, tests, Agent/document/source-risk contracts, dependency architecture,
-policy self-tests, and an explicit `x86_64-pc-windows-msvc` build with
-`--locked`. These static gates do not replace the separately reported manual
-Windows smoke, packaging, performance, or accessibility checks.
+Clippy, explicit pure-core/GPUI/workspace test layers, Agent/document/source-risk
+contracts, dependency architecture, policy self-tests, and an explicit
+`x86_64-pc-windows-msvc` build with `--locked`, followed by a native first-frame,
+Action, close, and process-exit smoke. Specialized manual Windows, packaging,
+performance, or accessibility checks are reported separately.
+
+Run a focused layer while developing:
+
+```powershell
+.\scripts\test.ps1 -Suite core
+.\scripts\test.ps1 -Suite gpui
+.\scripts\smoke.ps1
+```
 
 ## Repository map
 
@@ -69,7 +80,8 @@ Agents begin at [the root operating contract](AGENTS.md), then read the nearest
 scoped `AGENTS.md`. Runtime and multi-module tasks follow
 [the Agent workflow](docs/agent-workflow.md), fill
 [the task specification](docs/agent-task-template.md), and apply
-[the development standard](docs/agent-development-standard.md). Changes to
+[the development standard](docs/agent-development-standard.md) and
+[the automated testing standard](docs/testing-standard.md). Changes to
 ownership, shutdown, persistence/protocols, platform tier, unsafe boundaries, or
 the UI dependency source use [an ADR](docs/decisions/README.md).
 
@@ -85,8 +97,9 @@ dynamic validation are reported separately.
    production adapter and a test adapter.
 4. Put filesystem, network, database, or device work behind background tasks;
    commit results to GPUI entities on the foreground executor.
-5. Add a failure-path test and a lifecycle owner for every long-lived task,
-   subscription, channel, or native handle.
+5. Pair every behavior change with tests at the lowest stable seam; add
+   failure/cancel/stale/owner-drop coverage and a lifecycle owner where
+   applicable.
 6. Complete [the task specification template](docs/agent-task-template.md) for
    non-trivial agent work.
 

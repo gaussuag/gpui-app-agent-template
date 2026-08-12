@@ -29,10 +29,16 @@ remain in `app-core`.
 
 ## Validation
 
+Apply [the automated testing standard](../../docs/testing-standard.md). Use
+`#[gpui::test]`, `TestAppContext`, and `test_support::init_test_app` for changed
+Entity, Action/Event, focus, component, async completion, or owner-drop behavior.
+Drive the production typed Action and observe state/Event output; use a stable
+debug selector only when testing real pointer hit routing.
+
 Focused command:
 
 ```powershell
-cargo test --package app-ui --locked
+.\scripts\test.ps1 -Suite gpui
 ```
 
 Runtime behavior also needs the applicable Windows smoke cases in

@@ -54,6 +54,11 @@ Use [the task specification](agent-task-template.md) to record:
 - lifecycle, channel, capacity, privacy, and test evidence as applicable;
 - the smallest atomic implementation and commit slices.
 
+For each changed contract, name the stable observation seam, lowest test layer,
+expected failing test, applicable scenarios, and why a higher layer is or is not
+needed. Follow [the automated testing standard](testing-standard.md); behavior
+and its automated test remain one change.
+
 Find an adjacent pattern and test seam before creating a new abstraction. Add a
 service trait or adapter seam only when a real production dependency varies and
 a second implementation, normally a deterministic test adapter, is required.
@@ -74,7 +79,8 @@ slices, and direct acceptance evidence are checkable before code changes begin.
 4. Return small immutable results and commit them once on the foreground context.
 5. Check entity/window existence and request revision before committing.
 6. Notify only for semantic state changes; render only the prepared projection.
-7. Update lifecycle/channel/capacity records and tests with the behavior.
+7. Add the failing test at the planned stable seam, then implement the behavior.
+8. Update lifecycle/channel/capacity records and tests with the behavior.
 
 Keep unrelated refactors, dependency upgrades, generated churn, and product
 ideas outside the task. Preserve pre-existing changes and stage explicit paths.
@@ -84,11 +90,13 @@ an error and lifecycle outcome, and the working diff contains only task evidence
 
 ## 5. Verify from narrow to broad
 
-1. Run the focused module tests named by the closest scoped instructions.
+1. Run the focused layer in `scripts/test.ps1` named by the closest scoped
+   instructions.
 2. Exercise success, recoverable failure, cancellation/stale completion, and
    close/quit cases that apply to the change.
 3. Run `scripts/check.ps1` using the pinned toolchain.
-4. Perform the Windows manual smoke checklist when runtime behavior changed.
+4. Run the automated Windows smoke in the full gate when startup/window behavior
+   changed; perform specialized manual Windows checks where applicable.
 5. Inspect the final diff, task specification, new dependencies, and all
    `spawn`/channel/unsafe/exit sites touched by the change.
 

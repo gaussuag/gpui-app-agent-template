@@ -21,14 +21,15 @@ stable caller interface is `AppState::dispatch` plus `AppState::snapshot`.
 
 ## Validation
 
-Test behavior through `dispatch` and `snapshot`. For changed state transitions,
-cover success plus every applicable failure, cancellation/reset, stale/late
-completion, saturation/overflow, and idempotence case.
+Apply [the automated testing standard](../../docs/testing-standard.md). Test
+behavior through `dispatch` and `snapshot` in the same change. For changed state
+transitions, cover success plus every applicable failure, cancellation/reset,
+stale/late completion, saturation/overflow, and idempotence case.
 
 Focused command:
 
 ```powershell
-cargo test --package app-core --locked
+.\scripts\test.ps1 -Suite core
 ```
 
 Update `docs/architecture.md` when the Command/Effect/Snapshot protocol or state

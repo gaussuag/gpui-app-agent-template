@@ -12,6 +12,8 @@ and Git-policy entry points used locally and by CI.
 
 - Keep `scripts/check.ps1` the single full quality gate; CI calls it instead of
   duplicating Cargo flags.
+- Keep test layers explicit in `scripts/test.ps1`; `app-ui` always runs with
+  GPUI `test-support`. Keep the Windows process smoke finite and self-closing.
 - Make checks fail closed with an actionable rule, offending path/symbol, and
   remediation. Do not downgrade a failure to preserve a green build.
 - Resolve paths from `$PSScriptRoot`, use the pinned Cargo resolver, set

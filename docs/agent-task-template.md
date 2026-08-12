@@ -90,6 +90,15 @@ full lifecycle template when more than two resources interact.
 Name dependency upgrades, refactors, generated changes, or migrations that must
 remain separate.
 
+## Automated test plan
+
+Each behavior slice and its tests remain in the same change. Capture the
+expected red failure before implementation.
+
+| Changed contract | Stable observation seam | Lowest layer | Expected red evidence/test | Applicable scenarios | Higher layer or not-applicable reason |
+|---|---|---|---|---|---|
+|  |  | Pure core / fake adapter / GPUI headless / Windows smoke |  |  |  |
+
 ## Acceptance matrix
 
 | Scenario | Expected observable result | Test or direct evidence | Status/reason if not applicable |
@@ -114,7 +123,8 @@ remain separate.
 | Workspace tests |  |  |  |
 | Architecture/Agent contracts |  |  |  |
 | Windows MSVC build |  |  |  |
-| Manual Windows smoke |  |  |  |
+| Automated Windows smoke |  |  |  |
+| Specialized manual Windows checks |  |  |  |
 | Packaging/signing |  |  |  |
 | Performance/accessibility |  |  |  |
 

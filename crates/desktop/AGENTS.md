@@ -17,6 +17,8 @@ into `app_ui::run`. It is intentionally thin.
   dedicated platform crate; do not grow `main.rs` into a second owner.
 - A change to process exit or last-window behavior follows the Windows contract,
   updates the lifecycle ledger, and records an ADR when shutdown semantics move.
+- Startup, first-frame, or exit behavior also updates and runs the automated
+  Windows smoke defined by [the testing standard](../../docs/testing-standard.md).
 
 Focused command:
 

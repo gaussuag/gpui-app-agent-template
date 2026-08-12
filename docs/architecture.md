@@ -42,7 +42,7 @@ waits on channels, sleeps, or acquires long-lived locks.
 
 | Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
 |---|---|---|---|---|---|---|---|
-| Main window | GPUI application | `app-ui::run` | Window close/application quit | GPUI platform contract | No application data to flush | Startup error to stderr; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
+| Main window | GPUI application | `app-ui::run` or finite `run_smoke` | Window close/application quit; smoke removes its own window | Smoke process deadline; interactive mode follows GPUI platform contract | No application data to flush | Startup error to stderr; smoke returns failure; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
 | Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
 | Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
 
@@ -59,8 +59,17 @@ them from this CPU-only example.
 
 ## Testing strategy
 
-- Test state behavior through `AppState::dispatch` and `snapshot`.
-- Test adapters through observable results at their seam.
-- Keep platform smoke tests separate from pure state tests.
-- Prefer a deterministic fake clock/filesystem/backend when the production
-  dependency genuinely varies; do not expose internal seams solely for tests.
+- `scripts/test.ps1 -Suite core` tests state through `AppState::dispatch` and
+  `snapshot` without GPUI.
+- `scripts/test.ps1 -Suite gpui` enables GPUI `test-support`, initializes the
+  real gpui-component globals, and tests the production Entity through typed
+  Actions, a real Button click, deterministic Task drain/cancel, and owner drop.
+- `scripts/smoke.ps1` is a distinct native-backend layer: the production window
+  reaches a frame, handles a typed Action, verifies state on a second frame, and
+  performs bounded close/exit. Specialized visual, DPI, accessibility, and
+  installer evidence remains separately named.
+- Introduce a deterministic fake clock/filesystem/backend only when the real
+  production dependency varies; do not expose internal seams solely for tests.
+
+The normative layer/scenario/evidence rules are in
+[the automated testing standard](testing-standard.md).

@@ -135,19 +135,16 @@ an ADR-backed exception.
 
 ## Tests and evidence
 
-- **SHOULD:** Keep core policy testable without a real window, network, device,
-  or filesystem. Add a fake/memory backend, clock, or executor when the real
-  dependency varies and failure timing matters.
+- **MUST:** Apply [the automated testing standard](testing-standard.md). Every
+  behavior change carries automated tests at the lowest stable seam in the same
+  change; the task records expected red evidence before implementation.
 - **MUST:** For the changed chain, evaluate success, recoverable failure,
   cancellation, stale/late completion, channel full/disconnect, close/quit,
   migration, and platform fallback. Test applicable rows and state why other
   rows do not apply.
-- **MUST:** Test stable module interfaces and observable behavior. Source-string
-  assertions are not substitutes for behavior tests unless the string is itself
-  the contract.
 - **MUST:** Run focused checks before the canonical full gate. Record formatter,
-  Clippy, tests, repository contracts, Windows build, manual smoke, packaging,
-  performance, and accessibility separately.
+  Clippy, each test layer, repository contracts, Windows build/smoke, manual
+  specialized checks, packaging, performance, and accessibility separately.
 - **MUST:** `Not run` is an evidence state. A workflow file, existing test,
   benchmark source, another platform, or narrower check cannot be reported as a
   current pass.
@@ -170,5 +167,5 @@ Before completion, account for every applicable item:
 - current checkout, GPUI/component identity, scoped rules, and user changes;
 - entry/owner/effect/background/guard/notify/render/error/shutdown chain;
 - lifecycle ledger, channel semantics, capacity, cleanup, and privacy;
-- success/failure/cancel/stale/close tests and focused/full checks;
+- paired success/failure/cancel/stale/close tests and focused/full checks;
 - docs/ADR/commit updates and every dynamic check that remains unrun.

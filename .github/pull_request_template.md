@@ -30,13 +30,22 @@ specification for runtime or multi-module work and name explicit exclusions.
 | Owner/window close and App quit |  |
 | Platform fallback |  |
 
+## Automated test contract
+
+- [ ] Every behavior change has tests in this change, or a concrete blocker and
+      owned follow-up is recorded.
+- [ ] The lowest stable seam and expected red failure are recorded in the task.
+- [ ] GPUI behavior uses the explicit `app-ui` `test-support` suite; CI does not
+      silently exclude it.
+
 ## Verification
 
 | Gate | Exact command/action | Result and commit |
 |---|---|---|
 | Focused tests |  |  |
 | `scripts/check.ps1` |  |  |
-| Manual Windows smoke |  |  |
+| Automated Windows smoke |  |  |
+| Specialized manual Windows checks |  |  |
 | Packaging/signing |  |  |
 | Performance/accessibility |  |  |
 
