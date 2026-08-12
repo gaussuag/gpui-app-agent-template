@@ -136,12 +136,12 @@ expected red failure before implementation.
 
 ## Handoff
 
-- Task commit range:
-- Commits and planned-slice mapping:
+- Quality (exact checks/results, unrun checks/reasons, remaining risks):
+- History (task commit range and planned-slice-to-commit mapping):
+- Worktree (clean, preserved pre-existing changes, or user-requested
+  uncommitted task changes):
 - Decisions and lifecycle changes:
-- Unrun checks and reasons:
-- Worktree: clean, preserved pre-existing changes, or user-requested uncommitted task changes:
-- Remaining risks or follow-up tasks:
+- Follow-up tasks:
 ```
 
 The task is complete only when every applicable acceptance item has direct

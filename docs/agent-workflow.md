@@ -145,9 +145,15 @@ local commit, and no task-owned implementation remains only in the working tree.
    `git log <task-start>..HEAD --oneline` to prove that history matches the plan.
 5. Inspect `git status --short` and distinguish preserved pre-existing changes
    from task-owned changes.
-6. Report changed behavior, architecture/lifecycle decisions, commits, exact
-   verification results, unrun dynamic checks, remaining risks, and worktree
-   ownership.
+6. Use these three explicit handoff states for every change task, including the
+   focused lane:
+   - `Quality`: exact checks and results, checks not run with reasons, and
+     remaining risks.
+   - `History`: the task commit range and the planned-slice-to-commit mapping.
+   - `Worktree`: whether it is clean, contains preserved pre-existing changes,
+     or contains user-requested uncommitted task changes.
+7. Alongside those states, report changed behavior and any architecture or
+   lifecycle decisions needed to understand the result.
 
 Do not push, release, rewrite history, migrate user data, or change credentials
 unless the task explicitly grants that authority.
