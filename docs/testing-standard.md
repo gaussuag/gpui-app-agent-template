@@ -40,6 +40,12 @@ canonical full gate is `scripts/check.ps1`; it explicitly runs pure core, GPUI
 headless, workspace, and Windows smoke layers so a broad Cargo invocation cannot
 silently omit the component suite.
 
+Template initialization has a separate generated-repository integration layer:
+`scripts/test-generated-project.ps1` runs after the canonical gate in CI. It is
+separate to avoid recursive checks and proves clean Git initialization, spaced
+paths, Unicode identity, dynamic binary resolution, residual policy, the full
+child gate, and release PE resources.
+
 ## Scenario contract
 
 For each changed chain, evaluate all rows below. Test every applicable row and

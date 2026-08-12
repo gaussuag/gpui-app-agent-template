@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Neutral GPUI template icon">
+  <rect width="256" height="256" rx="52" fill="#172033"/>
+  <path d="M58 72h140v112H58z" fill="#f3f6fb"/>
+  <path d="M74 91h108v75H74z" fill="#3c7df0"/>
+  <circle cx="83" cy="81" r="5" fill="#ff6b6b"/>
+  <circle cx="100" cy="81" r="5" fill="#ffd166"/>
+  <circle cx="117" cy="81" r="5" fill="#56d364"/>
+  <path d="M99 113h58v12H99zm0 24h40v12H99z" fill="#fff"/>
+</svg>

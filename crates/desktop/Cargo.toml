@@ -1,5 +1,6 @@
 [package]
 name = "desktop"
+description = "A Windows-first Rust and GPUI desktop application."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,8 +11,19 @@ publish = false
 name = "gpui-app-agent-template"
 path = "src/main.rs"
 
+[package.metadata.winresource]
+ProductName = "GPUI Agent Template"
+CompanyName = "Unconfigured Publisher"
+LegalCopyright = "Copyright (c) 2026 Unconfigured Publisher"
+OriginalFilename = "gpui-app-agent-template.exe"
+InternalName = "gpui-app-agent-template"
+
 [dependencies]
 app-ui.workspace = true
+
+[build-dependencies]
+toml.workspace = true
+winresource.workspace = true
 
 [lints]
 workspace = true

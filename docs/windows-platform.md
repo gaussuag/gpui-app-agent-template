@@ -32,6 +32,17 @@ project.
 - Surface recoverable native failures as user-visible state with an action the
   user can take.
 
+## Product resources
+
+The desktop Cargo manifest, `crates/desktop/build.rs`, and the fixed
+`resources/windows/app.ico` path own product identity and static PE resources.
+Resource compilation fails the Windows build on missing/invalid metadata or
+icon. GPUI remains the sole application-manifest owner; do not add a second
+manifest through `winresource`. Run `scripts/check-product.ps1` to inspect PE
+VERSIONINFO, an extractable icon, and manifest resource ID 1. Release profile
+also requires a configured publisher and a non-template icon. The complete
+field map is in [the product identity contract](product-identity.md).
+
 ## Automated native smoke
 
 `scripts/smoke.ps1` runs two bounded checks against the built executable:
@@ -82,3 +93,5 @@ request must enter the shared shutdown coordinator before process exit.
 - Closing the last intended window terminates the process and releases native
   resources.
 - Installer/uninstaller behavior is verified separately when packaging exists.
+- ProductName, FileDescription, CompanyName, copyright, versions, filename,
+  icon, PerMonitorV2, and Common Controls v6 match the configured product.

@@ -45,6 +45,7 @@ specification for runtime or multi-module work and name explicit exclusions.
 | Focused tests |  |  |
 | `scripts/check.ps1` |  |  |
 | Automated Windows smoke |  |  |
+| Generated product fixture, when template identity/initialization changes |  |  |
 | Specialized manual Windows checks |  |  |
 | Packaging/signing |  |  |
 | Performance/accessibility |  |  |

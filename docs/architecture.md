@@ -17,8 +17,11 @@ last-window exit policy, render projection, and task/subscription lifetimes.
 Product filesystem, database, HTTP, or device integrations should introduce a
 seam only when a production adapter and a test adapter both exist.
 
-`desktop` is process glue. It may choose platform startup flags and call the UI
-launcher, but it does not contain application state or rendering.
+`desktop` is process glue and the product identity owner. Its Cargo manifest and
+build script produce an immutable launch identity plus static Windows resources;
+it may choose platform startup flags and call the UI launcher, but it does not
+contain application state or rendering. See
+[the product identity contract](product-identity.md).
 
 ## State and effect flow
 

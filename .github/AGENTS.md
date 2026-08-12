@@ -11,6 +11,8 @@ Dependabot, issue forms, and review templates.
   local and CI definitions of done remain identical.
 - Required CI executes the explicit `app-ui` GPUI headless suite and Windows
   process smoke. It must not rely on a workspace default that can omit either.
+- Required CI also executes the copied generated-product fixture; the template
+  gate alone does not prove initialization or renamed artifact behavior.
 - Fetch only the Git history required by commit-policy checks. Do not add secrets
   or write permissions to untrusted pull-request execution.
 - Templates collect evidence and link to canonical standards; they do not copy

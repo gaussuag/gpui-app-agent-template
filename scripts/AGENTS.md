@@ -20,6 +20,9 @@ and Git-policy entry points used locally and by CI.
   `$ErrorActionPreference = "Stop"`, and check native command exit codes.
 - Keep checks deterministic and non-interactive. A network, credential, GUI, or
   signing requirement belongs in a separately reported dynamic step.
+- Keep product edits allowlisted and in place. Initialization preserves role
+  crate names, refuses dirty worktrees, supports `-WhatIf`, and proves a copied
+  repository through `test-generated-project.ps1`.
 - Add a positive and negative self-test for parsers or policy validators. Avoid
   tests that mutate the user's Git configuration or working files.
 

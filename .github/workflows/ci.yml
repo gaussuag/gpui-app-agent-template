@@ -39,3 +39,7 @@ jobs:
       - name: Run repository gate
         shell: pwsh
         run: .\scripts\check.ps1
+
+      - name: Verify generated product fixture
+        shell: pwsh
+        run: .\scripts\test-generated-project.ps1

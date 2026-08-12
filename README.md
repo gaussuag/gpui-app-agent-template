@@ -1,7 +1,8 @@
-# GPUI App Agent Template
+# GPUI Agent Template
 
-A Windows-first Rust desktop starter that keeps domain logic independent from
-GPUI and gives coding agents mechanical architecture and delivery checks.
+<!-- product-summary:start -->
+A Windows-first Rust and GPUI desktop application.
+<!-- product-summary:end -->
 
 ## What is included
 
@@ -29,6 +30,24 @@ assumption inherited from upstream.
 3. [rustup](https://rustup.rs/). Entering the repository installs the pinned
    toolchain and components declared in `rust-toolchain.toml`.
 
+## Initialize a product
+
+After GitHub **Use this template** and clone, preview the in-place identity plan:
+
+```powershell
+.\scripts\init-project.ps1 `
+  -ProductSlug my-app `
+  -DisplayName "My App" `
+  -WhatIf
+```
+
+Remove `-WhatIf` to apply. The initializer requires a clean worktree, updates
+only allowlisted product fields, keeps the architecture role crates stable, and
+runs the full repository gate. The slug can be omitted to derive a suggestion
+from the new repository. Publisher and `.ico` are optional during development
+but required by the Release identity policy. See
+[product initialization and Windows identity](docs/product-identity.md).
+
 ## Run
 
 ```powershell
@@ -45,12 +64,14 @@ application.
 .\scripts\check.ps1
 ```
 
-That command is the local and CI definition of done. It runs formatting,
+That command is the canonical gate for ordinary changes. It runs formatting,
 Clippy, explicit pure-core/GPUI/workspace test layers, Agent/document/source-risk
 contracts, dependency architecture, policy self-tests, and an explicit
 `x86_64-pc-windows-msvc` build with `--locked`, followed by a native first-frame,
-Action, close, and process-exit smoke. Specialized manual Windows, packaging,
-performance, or accessibility checks are reported separately.
+Action, close, and process-exit smoke. Changes to template initialization or
+product identity additionally run `scripts/test-generated-project.ps1`; CI runs
+both scripts. Specialized manual Windows, packaging, performance, or
+accessibility checks are reported separately.
 
 Run a focused layer while developing:
 
@@ -58,6 +79,7 @@ Run a focused layer while developing:
 .\scripts\test.ps1 -Suite core
 .\scripts\test.ps1 -Suite gpui
 .\scripts\smoke.ps1
+.\scripts\test-generated-project.ps1 # template identity/initialization changes
 ```
 
 ## Repository map
@@ -91,16 +113,17 @@ dynamic validation are reported separately.
 
 ## Starting a real product
 
-1. Replace the demo `AppState` commands and snapshot with product terminology.
-2. Keep pure policy and state transitions in `app-core`.
-3. Add a seam only when there are at least two real adapters, normally a
+1. Run `scripts/init-project.ps1` before product code enters the repository.
+2. Replace the demo `AppState` commands and snapshot with product terminology.
+3. Keep pure policy and state transitions in `app-core`.
+4. Add a seam only when there are at least two real adapters, normally a
    production adapter and a test adapter.
-4. Put filesystem, network, database, or device work behind background tasks;
+5. Put filesystem, network, database, or device work behind background tasks;
    commit results to GPUI entities on the foreground executor.
-5. Pair every behavior change with tests at the lowest stable seam; add
+6. Pair every behavior change with tests at the lowest stable seam; add
    failure/cancel/stale/owner-drop coverage and a lifecycle owner where
    applicable.
-6. Complete [the task specification template](docs/agent-task-template.md) for
+7. Complete [the task specification template](docs/agent-task-template.md) for
    non-trivial agent work.
 
 ## Dependency upgrades

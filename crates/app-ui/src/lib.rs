@@ -18,9 +18,27 @@ use gpui_component::{
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
-const APP_TITLE: &str = "GPUI Agent Template";
-
 actions!(template, [Increment, Reset, RunWork]);
+
+/// Immutable product identity supplied by the process entry point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LaunchIdentity {
+    display_name: &'static str,
+}
+
+impl LaunchIdentity {
+    /// Construct the identity used for window and top-level product labels.
+    pub const fn new(display_name: &'static str) -> Self {
+        assert!(!display_name.is_empty(), "display name must not be empty");
+        Self { display_name }
+    }
+
+    /// Return the user-visible product name.
+    #[must_use]
+    pub const fn display_name(self) -> &'static str {
+        self.display_name
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LaunchMode {
@@ -46,8 +64,8 @@ fn install_last_window_quit_policy(cx: &mut App, mut request_quit: impl FnMut(&m
 }
 
 /// Launch the desktop application and its main window.
-pub fn run() {
-    run_with_mode(LaunchMode::Interactive);
+pub fn run(identity: LaunchIdentity) {
+    run_with_mode(identity, LaunchMode::Interactive);
 }
 
 /// Launch the production window in a finite native-backend self-check.
@@ -55,11 +73,11 @@ pub fn run() {
 /// The check succeeds only after a real frame, a production typed Action, its
 /// state projection, and a second frame complete before the process exits.
 #[must_use]
-pub fn run_smoke() -> bool {
-    run_with_mode(LaunchMode::Smoke)
+pub fn run_smoke(identity: LaunchIdentity) -> bool {
+    run_with_mode(identity, LaunchMode::Smoke)
 }
 
-fn run_with_mode(mode: LaunchMode) -> bool {
+fn run_with_mode(identity: LaunchIdentity, mode: LaunchMode) -> bool {
     let smoke_succeeded = Rc::new(Cell::new(false));
     let smoke_result = smoke_succeeded.clone();
 
@@ -74,8 +92,8 @@ fn run_with_mode(mode: LaunchMode) -> bool {
                 ..WindowOptions::default()
             },
             move |window, cx| {
-                window.set_window_title(APP_TITLE);
-                let view = cx.new(TemplateView::new);
+                window.set_window_title(identity.display_name());
+                let view = cx.new(|cx| TemplateView::new(identity, cx));
                 window.focus(&view.read(cx).focus_handle);
 
                 if mode == LaunchMode::Smoke {
@@ -110,18 +128,24 @@ fn run_with_mode(mode: LaunchMode) -> bool {
 }
 
 struct TemplateView {
+    identity: LaunchIdentity,
     state: AppState,
     work_task: Option<Task<()>>,
     focus_handle: FocusHandle,
 }
 
 impl TemplateView {
-    fn new(cx: &mut Context<'_, Self>) -> Self {
+    fn new(identity: LaunchIdentity, cx: &mut Context<'_, Self>) -> Self {
         Self {
+            identity,
             state: AppState::default(),
             work_task: None,
             focus_handle: cx.focus_handle(),
         }
+    }
+
+    fn display_name(&self) -> &'static str {
+        self.identity.display_name()
     }
 
     fn dispatch(&mut self, command: Command, cx: &mut Context<'_, Self>) {
@@ -171,7 +195,7 @@ impl Render for TemplateView {
             .child(
                 v_flex()
                     .gap_2()
-                    .child(gpui::div().text_2xl().child(APP_TITLE))
+                    .child(gpui::div().text_2xl().child(self.display_name()))
                     .child(
                         gpui::div()
                             .text_sm()

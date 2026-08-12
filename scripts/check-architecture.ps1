@@ -17,7 +17,7 @@ if ($coreText -match "\bgpui(-component)?\b" -or $sourceViolations) {
 
 $manifestPath = Join-Path $root "Cargo.toml"
 $manifest = Get-Content -Raw $manifestPath
-foreach ($packageName in @("gpui", "gpui-component")) {
+foreach ($packageName in @("gpui", "gpui-component", "toml", "winresource")) {
     $dependencyLine = ($manifest -split "`n" |
         Where-Object { $_ -match "^$([regex]::Escape($packageName))\s*=" } |
         Select-Object -First 1)
@@ -45,7 +45,7 @@ finally {
 }
 
 $metadata = $metadataJson | ConvertFrom-Json
-foreach ($packageName in @("gpui", "gpui-component")) {
+foreach ($packageName in @("gpui", "gpui-component", "winresource")) {
     $packages = @($metadata.packages | Where-Object { $_.name -eq $packageName })
     if ($packages.Count -ne 1) {
         throw "Dependency identity violation: expected one $packageName package, found $($packages.Count)."
@@ -93,6 +93,24 @@ function Assert-Dependencies {
 Assert-Dependencies -PackageName "app-core" -Forbidden @("app-ui", "desktop", "gpui", "gpui-component")
 Assert-Dependencies -PackageName "app-ui" -Required @("app-core", "gpui", "gpui-component") -Forbidden @("desktop")
 Assert-Dependencies -PackageName "desktop" -Required @("app-ui") -Forbidden @("app-core", "gpui", "gpui-component")
+
+$desktopBuildDependencies = @($workspacePackages["desktop"].dependencies | Where-Object {
+    $_.kind -eq "build"
+})
+foreach ($dependency in @("toml", "winresource")) {
+    if ($desktopBuildDependencies.name -notcontains $dependency) {
+        throw "Product resource architecture violation: desktop needs build dependency $dependency."
+    }
+}
+$desktopBinaries = @($workspacePackages["desktop"].targets | Where-Object { $_.kind -contains "bin" })
+if ($desktopBinaries.Count -ne 1) {
+    throw "Product identity architecture violation: desktop must expose exactly one binary target."
+}
+
+$desktopBuildScript = Get-Content -Raw (Join-Path $root "crates\desktop\build.rs")
+if ($desktopBuildScript -match '\bset_manifest(_file)?\s*\(') {
+    throw "Windows manifest ownership violation: GPUI is the sole application-manifest owner."
+}
 
 $testSupportFeature = @($workspacePackages["app-ui"].features."test-support")
 if ($testSupportFeature -notcontains "gpui/test-support") {

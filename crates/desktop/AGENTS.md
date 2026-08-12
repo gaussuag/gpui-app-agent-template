@@ -4,8 +4,10 @@ This file extends [the repository contract](../../AGENTS.md) for process startup
 
 ## Owner
 
-`desktop` owns the executable target, process-level startup flags, and the call
-into `app_ui::run`. It is intentionally thin.
+`desktop` owns the executable target, Cargo product metadata, Windows ICON and
+VERSIONINFO compilation, process-level startup flags, and the call into
+`app_ui::run`. It is intentionally thin. Follow
+[the product identity contract](../../docs/product-identity.md).
 
 ## Boundaries
 
@@ -13,6 +15,8 @@ into `app_ui::run`. It is intentionally thin.
   workers out of this crate.
 - Keep the release `windows_subsystem = "windows"` behavior unless a documented
   product decision changes console ownership.
+- Keep GPUI as the sole application-manifest owner. `build.rs` may embed icon
+  and VERSIONINFO but must not embed a second manifest resource ID 1.
 - Put Win32/COM or other platform behavior behind an adapter in `app-ui` or a
   dedicated platform crate; do not grow `main.rs` into a second owner.
 - A change to process exit or last-window behavior follows the Windows contract,

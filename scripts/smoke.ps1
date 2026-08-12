@@ -8,6 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $cargoPath = & (Join-Path $PSScriptRoot "resolve-cargo.ps1")
+$desktopTarget = & (Join-Path $PSScriptRoot "resolve-desktop-target.ps1")
 $targetTriple = "x86_64-pc-windows-msvc"
 $successMarker = "GPUI_SMOKE_OK"
 
@@ -25,7 +26,7 @@ try {
         }
     }
 
-    $executable = Join-Path $root "target\$targetTriple\debug\gpui-app-agent-template.exe"
+    $executable = Join-Path $desktopTarget.TargetDirectory "$targetTriple\debug\$($desktopTarget.BinaryName).exe"
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw "Windows smoke executable is missing: $executable"
     }

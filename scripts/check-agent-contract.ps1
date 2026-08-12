@@ -19,6 +19,7 @@ $requiredFiles = @(
     "docs/architecture.md",
     "docs/dependency-policy.md",
     "docs/windows-platform.md",
+    "docs/product-identity.md",
     "docs/git-commit-policy.md",
     "docs/decisions/README.md",
     "docs/templates/adr.md",
@@ -46,6 +47,7 @@ if (Test-Path -LiteralPath $rootContractPath) {
         "docs/architecture.md",
         "docs/dependency-policy.md",
         "docs/windows-platform.md",
+        "docs/product-identity.md",
         "docs/git-commit-policy.md",
         "docs/decisions/README.md",
         "scripts/check.ps1"

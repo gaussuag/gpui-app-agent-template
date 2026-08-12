@@ -10,6 +10,11 @@ as a unit.
 The baseline permits one registry identity for `gpui` and one for
 `gpui-component`. `scripts/check-architecture.ps1` enforces that property.
 
+The desktop build additionally pins exact registry versions of `toml` and
+`winresource`. They validate Cargo-owned product identity and embed ICON plus
+VERSIONINFO. `winresource` is not an application-manifest owner; GPUI's
+`windows-manifest` feature remains the sole source of manifest resource ID 1.
+
 ## Resolved feature contract
 
 Cargo unions features enabled through every dependency edge.

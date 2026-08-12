@@ -20,3 +20,4 @@ Current decisions:
 
 - [ADR 0001: Registry-first GPUI bill of materials](0001-ui-bom.md)
 - [ADR 0002: Application-owned last-window exit](0002-last-window-exit.md)
+- [ADR 0003: Cargo-owned product identity and Windows resource ownership](0003-product-identity.md)

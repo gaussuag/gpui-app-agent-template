@@ -17,10 +17,12 @@
    GPUI, gpui-component, features, sources, patches, or the lockfile.
 6. Read [the Windows contract](docs/windows-platform.md) before changing
    windows, native APIs, paths, packaging, installers, or platform code.
-7. Use [the task specification](docs/agent-task-template.md) for runtime changes
+7. Read [the product identity contract](docs/product-identity.md) before changing
+   product names, the desktop binary, icons, PE resources, or initialization.
+8. Use [the task specification](docs/agent-task-template.md) for runtime changes
    or work spanning more than one module. Its acceptance evidence is the bound
    of the task; unresolved items remain incomplete.
-8. Read [the decision index](docs/decisions/README.md) before changing an owner,
+9. Read [the decision index](docs/decisions/README.md) before changing an owner,
    dependency direction, persistence/protocol, shutdown, platform/unsafe
    boundary, UI source, or source-risk exception.
 

@@ -4,13 +4,16 @@ use app_core::{Snapshot, WorkStatus};
 use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
 use super::{
-    Increment, Reset, RunWork, TemplateView, install_last_window_quit_policy, test_support,
+    Increment, LaunchIdentity, Reset, RunWork, TemplateView, install_last_window_quit_policy,
+    test_support,
 };
+
+const TEST_IDENTITY: LaunchIdentity = LaunchIdentity::new("Fixture Product");
 
 fn test_window(cx: &mut TestAppContext) -> (gpui::Entity<TemplateView>, &mut VisualTestContext) {
     test_support::init_test_app(cx);
     cx.add_window_view(|window, cx| {
-        let view = TemplateView::new(cx);
+        let view = TemplateView::new(TEST_IDENTITY, cx);
         window.focus(&view.focus_handle);
         view
     })
@@ -18,6 +21,16 @@ fn test_window(cx: &mut TestAppContext) -> (gpui::Entity<TemplateView>, &mut Vis
 
 fn snapshot(view: &gpui::Entity<TemplateView>, cx: &VisualTestContext) -> Snapshot {
     view.read_with(cx, |view, _| view.state.snapshot())
+}
+
+#[gpui::test]
+fn launch_identity_reaches_the_window_view(cx: &mut TestAppContext) {
+    let (view, cx) = test_window(cx);
+
+    assert_eq!(
+        view.read_with(cx, |view, _| view.display_name()),
+        "Fixture Product"
+    );
 }
 
 #[gpui::test]
@@ -94,8 +107,8 @@ fn last_window_policy_requests_quit_only_after_the_final_window_closes(cx: &mut 
         install_last_window_quit_policy(cx, move |_| quit_observer.set(true));
     });
 
-    let first_window = cx.add_window(|_, cx| TemplateView::new(cx));
-    let second_window = cx.add_window(|_, cx| TemplateView::new(cx));
+    let first_window = cx.add_window(|_, cx| TemplateView::new(TEST_IDENTITY, cx));
+    let second_window = cx.add_window(|_, cx| TemplateView::new(TEST_IDENTITY, cx));
 
     let first_close = first_window.update(cx, |_, window, _| window.remove_window());
     assert!(first_close.is_ok());

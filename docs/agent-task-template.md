@@ -124,6 +124,7 @@ expected red failure before implementation.
 | Architecture/Agent contracts |  |  |  |
 | Windows MSVC build |  |  |  |
 | Automated Windows smoke |  |  |  |
+| Generated product fixture, when template identity/initialization changes |  |  |  |
 | Specialized manual Windows checks |  |  |  |
 | Packaging/signing |  |  |  |
 | Performance/accessibility |  |  |  |

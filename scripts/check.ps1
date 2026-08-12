@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $cargoPath = & (Join-Path $PSScriptRoot "resolve-cargo.ps1")
+$productProfile = "Template"
 
 function Invoke-CargoStep {
     param(
@@ -22,6 +23,8 @@ function Invoke-CargoStep {
 
 Push-Location $root
 try {
+    Write-Host "==> source product identity ($productProfile)"
+    & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $productProfile
     Invoke-CargoStep -Name "rustfmt" -Arguments @("fmt", "--all", "--", "--check")
     Invoke-CargoStep -Name "Clippy" -Arguments @(
         "clippy", "--workspace", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"
@@ -38,6 +41,10 @@ try {
     Invoke-CargoStep -Name "Windows MSVC build" -Arguments @(
         "build", "--package", "desktop", "--target", "x86_64-pc-windows-msvc", "--locked"
     )
+    $desktopTarget = & (Join-Path $PSScriptRoot "resolve-desktop-target.ps1")
+    $artifactPath = Join-Path $desktopTarget.TargetDirectory "x86_64-pc-windows-msvc\debug\$($desktopTarget.BinaryName).exe"
+    Write-Host "==> built Windows product identity ($productProfile)"
+    & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $productProfile -ArtifactPath $artifactPath
     & (Join-Path $PSScriptRoot "smoke.ps1") -SkipBuild
 }
 finally {

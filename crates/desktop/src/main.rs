@@ -2,6 +2,8 @@
 
 use std::{ffi::OsString, process::ExitCode};
 
+mod product_identity;
+
 const SMOKE_ARGUMENT: &str = "--smoke-test";
 const SMOKE_SUCCESS_MARKER: &str = "GPUI_SMOKE_OK";
 
@@ -12,8 +14,9 @@ fn smoke_requested(arguments: impl IntoIterator<Item = OsString>) -> bool {
 }
 
 fn main() -> ExitCode {
+    let identity = product_identity::launch_identity();
     if smoke_requested(std::env::args_os().skip(1)) {
-        if app_ui::run_smoke() {
+        if app_ui::run_smoke(identity) {
             println!("{SMOKE_SUCCESS_MARKER}");
             return ExitCode::SUCCESS;
         }
@@ -22,7 +25,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    app_ui::run();
+    app_ui::run(identity);
     ExitCode::SUCCESS
 }
 
