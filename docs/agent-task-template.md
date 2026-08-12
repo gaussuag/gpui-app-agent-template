@@ -15,6 +15,7 @@ What user-observable success and recoverable failure behavior must be true?
 
 ## Current facts
 
+- Task-start commit:
 - Checkout/HEAD:
 - Existing worktree changes and owner:
 - Applicable root/scoped instructions:
@@ -84,8 +85,10 @@ full lifecycle template when more than two resources interact.
 
 ## Implementation and commits
 
-1. Atomic slice:
-2. Atomic slice:
+| Order | Atomic slice and owner | One reason to revert | Direct tests/docs | Depends on | Commit/status |
+|---|---|---|---|---|---|
+| 1 |  |  |  |  |  |
+| 2 |  |  |  |  |  |
 
 Name dependency upgrades, refactors, generated changes, or migrations that must
 remain separate.
@@ -131,9 +134,11 @@ expected red failure before implementation.
 
 ## Handoff
 
-- Commits:
+- Task commit range:
+- Commits and planned-slice mapping:
 - Decisions and lifecycle changes:
 - Unrun checks and reasons:
+- Worktree: clean, preserved pre-existing changes, or user-requested uncommitted task changes:
 - Remaining risks or follow-up tasks:
 ```
 

@@ -54,9 +54,16 @@ only change may shorten this record but still identifies its source of truth.
 
 ## Delivery
 
-Keep the diff and commits within the requested behavior. Follow
-[the Git commit policy](docs/git-commit-policy.md). Run the focused suite in
-`scripts/test.ps1` first and then `scripts/check.ps1` before claiming completion.
-Report formatting, Clippy, each test layer, architecture/Agent checks, Windows
-smoke, packaging, and specialized manual checks separately; an unrun gate is not
-a passing gate.
+Tasks that change repository files follow [the Agent workflow](docs/agent-workflow.md)
+through one or more planned, policy-compliant local commits unless the user
+explicitly asks to leave the changes uncommitted. Read-only, diagnostic, and
+review tasks do not create commits. This local default does not authorize push,
+PR, merge, release, or history rewrites.
+
+Keep the diff and commits within the requested behavior and follow
+[the Git commit policy](docs/git-commit-policy.md). The workflow runs
+`scripts/check.ps1` as the final repository quality gate; a passing gate is
+verification evidence, not the end of Git delivery or handoff. Report
+formatting, Clippy, each test layer, architecture/Agent checks, Windows smoke,
+packaging, and specialized manual checks separately; an unrun gate is not a
+passing gate.

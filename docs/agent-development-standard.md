@@ -17,6 +17,9 @@ an ADR-backed exception.
 - **MUST:** Keep the diff to the requested outcome and preserve unrelated user
   changes. Dependency upgrades and opportunistic refactors use separate tasks
   and commits.
+- **MUST:** Before the first edit, record the task-start commit and pre-existing
+  worktree changes. Plan dependency-safe slices so each local commit is coherent
+  without a later slice and has one reason to revert.
 - **SHOULD:** Reuse an adjacent owner pattern and stable test seam. Introduce a
   new seam only for real variation, not a predicted future implementation.
 - **SHOULD:** Keep public interfaces small and deep. Document state/resource
@@ -161,6 +164,10 @@ an ADR-backed exception.
   boundary, GPUI source/fork, or high-risk-pattern exceptions.
 - **MUST:** Follow `docs/git-commit-policy.md`; each commit has one reason to
   revert and records direct evidence.
+- **MUST:** A task that changes repository files ends in one or more planned,
+  policy-compliant local commits unless the user explicitly requests an
+  uncommitted handoff. Read-only, diagnostic, and review tasks do not commit.
+  Local delivery does not authorize push, PR, merge, release, or history rewrite.
 
 Before completion, account for every applicable item:
 
@@ -168,4 +175,5 @@ Before completion, account for every applicable item:
 - entry/owner/effect/background/guard/notify/render/error/shutdown chain;
 - lifecycle ledger, channel semantics, capacity, cleanup, and privacy;
 - paired success/failure/cancel/stale/close tests and focused/full checks;
-- docs/ADR/commit updates and every dynamic check that remains unrun.
+- docs/ADR/commit updates, the task commit range, final worktree ownership, and
+  every dynamic check that remains unrun.

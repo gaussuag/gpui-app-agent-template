@@ -51,4 +51,5 @@ finally {
     Pop-Location
 }
 
-Write-Host "All checks passed."
+Write-Host "Repository quality gate passed."
+Write-Host "For Agent change tasks, continue docs/agent-workflow.md until Git delivery, commit-range, worktree-status, and handoff are complete."

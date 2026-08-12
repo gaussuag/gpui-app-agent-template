@@ -1,13 +1,14 @@
 # Agent workflow
 
-This is the ordered recipe for non-trivial repository work. The normative rules
-are in [the Agent development standard](agent-development-standard.md); this
-file defines when work may advance to the next step.
+This is the ordered recipe for repository change tasks. The normative rules are
+in [the Agent development standard](agent-development-standard.md); this file
+defines when work may advance to the next step.
 
 ## 1. Establish current facts
 
 1. Read the root and nearest scoped `AGENTS.md`.
-2. Inspect `git status` and separate pre-existing changes from task changes.
+2. Record `git rev-parse HEAD` as the task-start commit. Inspect `git status`
+   and separate pre-existing changes from task changes.
 3. Read the target manifest, crate root, implementation, adjacent tests, and CI
    entry used for that area.
 4. Read `rust-toolchain.toml`, root UI dependencies, and the relevant lockfile
@@ -15,9 +16,10 @@ file defines when work may advance to the next step.
 5. Load the conditional architecture, dependency, Windows, or
    [decision records](decisions/README.md) named by the root contract.
 
-**Complete when:** task notes identify the checkout facts, applicable scoped
-rules, current dependency lineage, existing user changes, and authoritative
-files. Old chat or documentation is not the only evidence for any claim.
+**Complete when:** task notes identify the task-start commit, checkout facts,
+applicable scoped rules, current dependency lineage, existing user changes, and
+authoritative files. Old chat or documentation is not the only evidence for any
+claim.
 
 ## 2. Reconstruct the current behavior
 
@@ -52,7 +54,8 @@ Use [the task specification](agent-task-template.md) to record:
 - included modules/platform tier and explicit exclusions;
 - invariants and decisions that remain true;
 - lifecycle, channel, capacity, privacy, and test evidence as applicable;
-- the smallest atomic implementation and commit slices.
+- dependency-safe atomic implementation and commit slices, each coherent without
+  a later slice and carrying one reason to revert.
 
 For each changed contract, name the stable observation seam, lowest test layer,
 expected failing test, applicable scenarios, and why a higher layer is or is not
@@ -71,53 +74,72 @@ high-risk-pattern exception.
 **Complete when:** the requested result, excluded work, invariants, implementation
 slices, and direct acceptance evidence are checkable before code changes begin.
 
-## 4. Implement through owners
+## 4. Implement the next slice through owners
 
-1. Make state transitions in the authoritative module.
-2. Return side-effect requests as values and interpret them at the adapter seam.
-3. Keep external latency off the GPUI foreground path.
-4. Return small immutable results and commit them once on the foreground context.
-5. Check entity/window existence and request revision before committing.
-6. Notify only for semantic state changes; render only the prepared projection.
-7. Add the failing test at the planned stable seam, then implement the behavior.
-8. Update lifecycle/channel/capacity records and tests with the behavior.
+1. Select one planned atomic slice. Keep later slices out of the working diff.
+2. Make state transitions in the authoritative module.
+3. Return side-effect requests as values and interpret them at the adapter seam.
+4. Keep external latency off the GPUI foreground path.
+5. Return small immutable results and commit them once on the foreground context.
+6. Check entity/window existence and request revision before committing.
+7. Notify only for semantic state changes; render only the prepared projection.
+8. Add the failing test at the planned stable seam, then implement the behavior.
+9. Update lifecycle/channel/capacity records and tests with the behavior.
 
 Keep unrelated refactors, dependency upgrades, generated churn, and product
 ideas outside the task. Preserve pre-existing changes and stage explicit paths.
 
-**Complete when:** every changed branch returns to its authoritative owner, has
-an error and lifecycle outcome, and the working diff contains only task evidence.
+**Complete when:** the selected slice returns every changed branch to its
+authoritative owner, has an error and lifecycle outcome, and its working diff
+contains only that slice's direct implementation, tests, and documentation.
 
-## 5. Verify from narrow to broad
+## 5. Prove and commit the slice
 
-1. Run the focused layer in `scripts/test.ps1` named by the closest scoped
-   instructions.
+1. Run the focused command named by the closest scoped instructions. Use the
+   applicable `scripts/test.ps1` layer when Rust behavior changes.
 2. Exercise success, recoverable failure, cancellation/stale completion, and
    close/quit cases that apply to the change.
-3. Run `scripts/check.ps1` using the pinned toolchain.
-4. Run the automated Windows smoke in the full gate when startup/window behavior
-   changed; perform specialized manual Windows checks where applicable.
-5. Inspect the final diff, task specification, new dependencies, and all
-   `spawn`/channel/unsafe/exit sites touched by the change.
+3. Inspect `git status`, stage only the slice's explicit paths, and review
+   `git diff --cached`.
+4. Confirm the staged state is coherent without a later slice, has one reason to
+   revert, and includes its direct tests and documentation.
+5. Create the local commit under [the Git commit policy](git-commit-policy.md),
+   including Why, What, and the focused Evidence collected for this slice.
+6. Return to workflow step 4 and repeat this proof-and-commit step for every
+   planned slice. If implementation reveals a new revert reason or dependency,
+   update the plan before starting that slice.
 
 Record exact commands and outcomes. Report a check as `not run` with its reason
 when environment or authorization prevents it; never infer a pass from source,
 another platform, a workflow file, or a narrower command.
 
-**Complete when:** each acceptance item has direct evidence, every failure is
-preserved with an actionable summary, and no required item is silently omitted.
+**Complete when:** every planned slice has focused evidence and a policy-compliant
+local commit, and no task-owned implementation remains only in the working tree.
 
-## 6. Commit and hand off
+## 6. Verify the final commit state and hand off
 
-1. Review `git diff --cached` and validate one reason to revert per commit.
-2. Follow [the Git commit policy](git-commit-policy.md), including Why, What,
-   and Evidence sections.
-3. Report changed behavior, architecture/lifecycle decisions, commits, exact
-   verification results, unrun dynamic checks, and remaining risks.
+1. Inspect `git status`. Run `scripts/check.ps1` using the pinned toolchain
+   against the final commit state. When preserved pre-existing changes would
+   contaminate HEAD-only evidence, use a safe isolated detached worktree if the
+   environment permits; otherwise report the result as mixed-checkout evidence.
+   Never stash, reset, or rewrite user changes to manufacture a clean checkout.
+2. Perform specialized manual Windows checks where applicable; the automated
+   Windows smoke remains part of the full gate.
+3. If the final gate finds a defect, return to step 3, plan a corrective slice
+   with one revert reason, commit it, and rerun this step. Do not hide unrelated
+   corrections in a generic cleanup commit.
+4. Run `scripts/check-commits.ps1 "<task-start>..HEAD"` and inspect
+   `git log <task-start>..HEAD --oneline` to prove that history matches the plan.
+5. Inspect `git status --short` and distinguish preserved pre-existing changes
+   from task-owned changes.
+6. Report changed behavior, architecture/lifecycle decisions, commits, exact
+   verification results, unrun dynamic checks, remaining risks, and worktree
+   ownership.
 
 Do not push, release, rewrite history, migrate user data, or change credentials
 unless the task explicitly grants that authority.
 
-**Complete when:** committed history matches the planned slices, the worktree's
-remaining changes are understood, and the handoff can be verified without prior
-conversation.
+**Complete when:** committed history matches the planned slices, the final gate
+has an accurately labeled result, every task-owned change is committed unless
+the user requested otherwise, the worktree's remaining changes are understood,
+and the handoff can be verified without prior conversation.
