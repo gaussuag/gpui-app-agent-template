@@ -19,8 +19,10 @@ changes evidence depth, not architecture, test, commit, or permission standards.
 ## 1. Establish current facts
 
 1. Read the root and nearest scoped `AGENTS.md`.
-2. Record `git rev-parse HEAD` as the task-start commit. Inspect `git status`
-   and separate pre-existing changes from task changes.
+2. Record `git rev-parse HEAD` as the task-start commit. Inspect `git status`,
+   `git diff`, and `git diff --cached`; separate pre-existing worktree and index
+   changes from task changes. If the index already contains user changes, do
+   not use that shared index for a task commit.
 3. Read the target manifest, crate root, implementation, adjacent tests, and CI
    entry used for that area.
 4. Read `rust-toolchain.toml`, root UI dependencies, and the relevant lockfile
@@ -112,13 +114,18 @@ contains only that slice's direct implementation, tests, and documentation.
    applicable `scripts/test.ps1` layer when Rust behavior changes.
 2. Exercise success, recoverable failure, cancellation/stale completion, and
    close/quit cases that apply to the change.
-3. Inspect `git status`, stage only the slice's explicit paths, and review
-   `git diff --cached`.
-4. Confirm the staged state is coherent without a later slice, has one reason to
-   revert, and includes its direct tests and documentation.
-5. Create the local commit under [the Git commit policy](git-commit-policy.md),
+3. Inspect `git status` and compare the index with the pre-existing state
+   recorded in step 1. If it contains any pre-existing or non-slice content, do
+   not commit from that checkout: use explicitly authorized isolation or stop
+   without unstaging, resetting, or stashing user changes.
+4. When the index is available for the slice, stage only its explicit paths and
+   review the complete `git diff --cached`, not only a path-filtered view.
+5. Confirm the staged state contains only the slice, is coherent without a later
+   slice, has one reason to revert, and includes its direct tests and
+   documentation.
+6. Create the local commit under [the Git commit policy](git-commit-policy.md),
    including Why, What, and the focused Evidence collected for this slice.
-6. Return to workflow step 4 and repeat this proof-and-commit step for every
+7. Return to workflow step 4 and repeat this proof-and-commit step for every
    planned slice. If implementation reveals a new revert reason or dependency,
    update the plan before starting that slice.
 

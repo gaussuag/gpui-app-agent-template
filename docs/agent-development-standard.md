@@ -18,8 +18,11 @@ an ADR-backed exception.
   changes. Dependency upgrades and opportunistic refactors use separate tasks
   and commits.
 - **MUST:** Before the first edit, record the task-start commit and pre-existing
-  worktree changes. Plan dependency-safe slices so each local commit is coherent
-  without a later slice and has one reason to revert.
+  worktree and index changes. Never include pre-existing staged content in a
+  task commit; if the shared index cannot contain only the current slice, use
+  explicitly authorized isolation or stop without unstaging, resetting, or
+  stashing user changes. Plan dependency-safe slices so each local commit is
+  coherent without a later slice and has one reason to revert.
 - **SHOULD:** Reuse an adjacent owner pattern and stable test seam. Introduce a
   new seam only for real variation, not a predicted future implementation.
 - **SHOULD:** Keep public interfaces small and deep. Document state/resource
