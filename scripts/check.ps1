@@ -38,6 +38,7 @@ try {
     Invoke-CargoStep -Name "Windows MSVC build" -Arguments @(
         "build", "--package", "desktop", "--target", "x86_64-pc-windows-msvc", "--locked"
     )
+    & (Join-Path $PSScriptRoot "smoke.ps1") -SkipBuild
 }
 finally {
     Pop-Location

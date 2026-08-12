@@ -1,5 +1,7 @@
 //! GPUI adapter for the UI-independent application state.
 
+use std::{cell::Cell, rc::Rc};
+
 use app_core::{AppState, Command, Effect, Snapshot, WorkStatus};
 use gpui::{
     AppContext as _, Application, Bounds, Context, FocusHandle, Render, Task, Window, WindowBounds,
@@ -20,9 +22,31 @@ const APP_TITLE: &str = "GPUI Agent Template";
 
 actions!(template, [Increment, Reset, RunWork]);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LaunchMode {
+    Interactive,
+    Smoke,
+}
+
 /// Launch the desktop application and its main window.
 pub fn run() {
-    Application::new().run(|cx| {
+    run_with_mode(LaunchMode::Interactive);
+}
+
+/// Launch the production window in a finite native-backend self-check.
+///
+/// The check succeeds only after a real frame, a production typed Action, its
+/// state projection, and a second frame complete before the process exits.
+#[must_use]
+pub fn run_smoke() -> bool {
+    run_with_mode(LaunchMode::Smoke)
+}
+
+fn run_with_mode(mode: LaunchMode) -> bool {
+    let smoke_succeeded = Rc::new(Cell::new(false));
+    let smoke_result = smoke_succeeded.clone();
+
+    Application::new().run(move |cx| {
         gpui_component::init(cx);
 
         let bounds = Bounds::centered(None, size(px(920.0), px(620.0)), cx);
@@ -31,10 +55,30 @@ pub fn run() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..WindowOptions::default()
             },
-            |window, cx| {
+            move |window, cx| {
                 window.set_window_title(APP_TITLE);
                 let view = cx.new(TemplateView::new);
                 window.focus(&view.read(cx).focus_handle);
+
+                if mode == LaunchMode::Smoke {
+                    let action_view = view.clone();
+                    let action_result = smoke_result.clone();
+                    window.on_next_frame(move |window, cx| {
+                        window.dispatch_action(Box::new(Increment), cx);
+
+                        let verified_view = action_view.clone();
+                        let verified_result = action_result.clone();
+                        window.on_next_frame(move |window, cx| {
+                            let snapshot = verified_view.read(cx).state.snapshot();
+                            verified_result.set(snapshot.counter == 1);
+                            window.remove_window();
+                            cx.quit();
+                        });
+                        window.refresh();
+                    });
+                    window.refresh();
+                }
+
                 cx.new(|cx| Root::new(view, window, cx))
             },
         );
@@ -44,6 +88,8 @@ pub fn run() {
             cx.quit();
         }
     });
+
+    mode == LaunchMode::Interactive || smoke_succeeded.get()
 }
 
 struct TemplateView {
