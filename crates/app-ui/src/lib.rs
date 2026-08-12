@@ -2,8 +2,8 @@
 
 use app_core::{AppState, Command, Effect, Snapshot, WorkStatus};
 use gpui::{
-    AppContext as _, Application, Bounds, Context, Render, Task, Window, WindowBounds,
-    WindowOptions,
+    AppContext as _, Application, Bounds, Context, FocusHandle, Render, Task, Window, WindowBounds,
+    WindowOptions, actions,
     prelude::{InteractiveElement as _, IntoElement, ParentElement as _, Styled as _},
     px, size,
 };
@@ -13,7 +13,12 @@ use gpui_component::{
     h_flex, v_flex,
 };
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
+
 const APP_TITLE: &str = "GPUI Agent Template";
+
+actions!(template, [Increment, Reset, RunWork]);
 
 /// Launch the desktop application and its main window.
 pub fn run() {
@@ -28,7 +33,8 @@ pub fn run() {
             },
             |window, cx| {
                 window.set_window_title(APP_TITLE);
-                let view = cx.new(|_| TemplateView::default());
+                let view = cx.new(TemplateView::new);
+                window.focus(&view.read(cx).focus_handle);
                 cx.new(|cx| Root::new(view, window, cx))
             },
         );
@@ -40,13 +46,21 @@ pub fn run() {
     });
 }
 
-#[derive(Default)]
 struct TemplateView {
     state: AppState,
     work_task: Option<Task<()>>,
+    focus_handle: FocusHandle,
 }
 
 impl TemplateView {
+    fn new(cx: &mut Context<'_, Self>) -> Self {
+        Self {
+            state: AppState::default(),
+            work_task: None,
+            focus_handle: cx.focus_handle(),
+        }
+    }
+
     fn dispatch(&mut self, command: Command, cx: &mut Context<'_, Self>) {
         let effect = self.state.dispatch(command);
         cx.notify();
@@ -76,6 +90,16 @@ impl Render for TemplateView {
 
         v_flex()
             .id("template-root")
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(|view: &mut Self, _: &Increment, _, cx| {
+                view.dispatch(Command::Increment, cx);
+            }))
+            .on_action(cx.listener(|view: &mut Self, _: &Reset, _, cx| {
+                view.dispatch(Command::Reset, cx);
+            }))
+            .on_action(cx.listener(|view: &mut Self, _: &RunWork, _, cx| {
+                view.dispatch(Command::RunWork, cx);
+            }))
             .size_full()
             .gap_6()
             .p_8()
@@ -115,30 +139,40 @@ impl Render for TemplateView {
                         h_flex()
                             .gap_2()
                             .child(
-                                Button::new("increment")
-                                    .primary()
-                                    .label("Increment")
-                                    .on_click(cx.listener(|view, _, _, cx| {
-                                        view.dispatch(Command::Increment, cx);
-                                    })),
+                                gpui::div()
+                                    .debug_selector(|| "increment-button".to_owned())
+                                    .child(
+                                        Button::new("increment")
+                                            .primary()
+                                            .label("Increment")
+                                            .on_click(cx.listener(|_, _, window, cx| {
+                                                window.dispatch_action(Box::new(Increment), cx);
+                                            })),
+                                    ),
                             )
                             .child(
-                                Button::new("reset").label("Reset").on_click(cx.listener(
-                                    |view, _, _, cx| {
-                                        view.dispatch(Command::Reset, cx);
-                                    },
-                                )),
+                                gpui::div()
+                                    .debug_selector(|| "reset-button".to_owned())
+                                    .child(Button::new("reset").label("Reset").on_click(
+                                        cx.listener(|_, _, window, cx| {
+                                            window.dispatch_action(Box::new(Reset), cx);
+                                        }),
+                                    )),
                             )
                             .child(
-                                Button::new("run-work")
-                                    .label(if status_is_running {
-                                        "Restart background work"
-                                    } else {
-                                        "Run background work"
-                                    })
-                                    .on_click(cx.listener(|view, _, _, cx| {
-                                        view.dispatch(Command::RunWork, cx);
-                                    })),
+                                gpui::div()
+                                    .debug_selector(|| "run-work-button".to_owned())
+                                    .child(
+                                        Button::new("run-work")
+                                            .label(if status_is_running {
+                                                "Restart background work"
+                                            } else {
+                                                "Run background work"
+                                            })
+                                            .on_click(cx.listener(|_, _, window, cx| {
+                                                window.dispatch_action(Box::new(RunWork), cx);
+                                            })),
+                                    ),
                             ),
                     )
                     .child(
@@ -174,7 +208,7 @@ fn status_text(snapshot: &Snapshot) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+mod projection_tests {
     use super::*;
 
     #[test]
@@ -193,3 +227,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests;

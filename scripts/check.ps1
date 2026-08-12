@@ -26,9 +26,7 @@ try {
     Invoke-CargoStep -Name "Clippy" -Arguments @(
         "clippy", "--workspace", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"
     )
-    Invoke-CargoStep -Name "tests" -Arguments @(
-        "test", "--workspace", "--all-features", "--locked"
-    )
+    & (Join-Path $PSScriptRoot "test.ps1") -Suite all
     Write-Host "==> Agent repository contracts"
     & (Join-Path $PSScriptRoot "check-agent-contract.ps1")
     Write-Host "==> source risk policy"

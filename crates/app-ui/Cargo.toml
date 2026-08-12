@@ -6,10 +6,16 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+test-support = ["gpui/test-support"]
+
 [dependencies]
 app-core.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

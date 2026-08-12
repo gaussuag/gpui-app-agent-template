@@ -94,4 +94,18 @@ Assert-Dependencies -PackageName "app-core" -Forbidden @("app-ui", "desktop", "g
 Assert-Dependencies -PackageName "app-ui" -Required @("app-core", "gpui", "gpui-component") -Forbidden @("desktop")
 Assert-Dependencies -PackageName "desktop" -Required @("app-ui") -Forbidden @("app-core", "gpui", "gpui-component")
 
+$testSupportFeature = @($workspacePackages["app-ui"].features."test-support")
+if ($testSupportFeature -notcontains "gpui/test-support") {
+    throw "Test architecture violation: app-ui test-support must enable gpui/test-support."
+}
+$gpuiTestDependencies = @($workspacePackages["app-ui"].dependencies | Where-Object {
+    $_.name -eq "gpui" -and $_.kind -eq "dev"
+})
+if (
+    $gpuiTestDependencies.Count -ne 1 -or
+    $gpuiTestDependencies[0].features -notcontains "test-support"
+) {
+    throw "Test architecture violation: app-ui needs one GPUI dev dependency with test-support."
+}
+
 Write-Host "Architecture and UI dependency identity checks passed."
