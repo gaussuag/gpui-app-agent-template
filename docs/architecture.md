@@ -45,7 +45,7 @@ waits on channels, sleeps, or acquires long-lived locks.
 
 | Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
 |---|---|---|---|---|---|---|---|
-| Main window | GPUI application | `app-ui::run` or finite `run_smoke` | GPUI removes the closed window; the application policy requests quit only when no windows remain | 15-second native smoke deadlines for first-frame self-check and interactive last-window close | No application data to flush | Startup error to stderr; smoke returns failure; future recoverable startup errors need UI/launcher state | GPUI releases the window; no product resource currently outlives it |
+| Main window | GPUI application | `app-ui::run` or finite `run_smoke` | GPUI removes the closed window; the application policy requests quit only when no windows remain | 15-second native smoke deadlines for first-frame self-check and interactive last-window close | No application data to flush | Startup error to stderr; smoke returns failure; see [the startup failure baseline](#startup-failure-baseline) | GPUI releases the window; no product resource currently outlives it |
 | Last-window close `Subscription` | App-global `ApplicationLifecycle` | `run_with_mode` after gpui-component initialization | One application-lifetime observer; no stale identity required | Event-driven on the GPUI foreground context | Dropping the App-global owner unsubscribes; no flush | Infallible zero-window check; process-level timeout reports a missing exit | Observer checks `cx.windows().is_empty()` and calls `cx.quit()`; App shutdown drops the owner |
 | Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
 | Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
@@ -60,6 +60,24 @@ The sample has no fallible external I/O and therefore does not demonstrate a
 complete error or shutdown coordinator. Introduce those protocols with the first
 real resource that requires recovery, flush, join, or confirmation; do not infer
 them from this CPU-only example.
+
+### Startup failure baseline
+
+If GPUI rejects main-window creation, `app-ui` writes the error to stderr and
+requests application quit. The interactive launcher does not promise a non-zero
+process exit code for this platform failure. This is a template baseline, not a
+general product recovery contract.
+
+The locked GPUI test platform currently always creates windows successfully.
+The template therefore does not add a test-only window opener, fake platform,
+or failure-only launch mode to simulate this branch. The native Windows smoke
+remains the acceptance evidence for successful startup and rejects a process
+that exits before exposing its main window; it does not inject window-creation
+failure.
+
+Revisit this baseline when a real launcher, installer, or supervisor consumes
+the process exit status; a production incident demonstrates the need; or GPUI
+provides deterministic window-creation failure injection.
 
 ## Testing strategy
 

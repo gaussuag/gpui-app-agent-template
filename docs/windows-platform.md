@@ -45,6 +45,11 @@ field map is in [the product identity contract](product-identity.md).
 
 ## Automated native smoke
 
+Before changing main-window startup error propagation or interactive process
+exit status, read [the startup failure baseline](architecture.md#startup-failure-baseline).
+The smoke below proves successful native startup and rejects an early process
+exit; it does not inject platform window-creation failure.
+
 `scripts/smoke.ps1` runs two bounded checks against the built executable:
 
 1. The internal `--smoke-test` mode opens the production
