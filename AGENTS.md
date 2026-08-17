@@ -5,9 +5,11 @@
 1. Read the request, `git status`, this file, the root manifest, and the nearest
    scoped `AGENTS.md` before editing. Current source and `Cargo.lock` outrank
    plans, comments, old discussion, and remembered APIs.
-2. Classify work with [the Agent workflow](docs/agent-workflow.md) as read-only,
-   focused change, or full change before editing. Every change task follows that
-   workflow and [the development standard](docs/agent-development-standard.md).
+2. Classify work with [the Agent workflow](docs/agent-workflow.md) before editing
+   and create the lane record required by
+   [the executable change contract](docs/change-contract.md). Every change task
+   follows that workflow and
+   [the development standard](docs/agent-development-standard.md).
 3. Before changing behavior, read and apply
    [the automated testing standard](docs/testing-standard.md). Pair the behavior
    and its automated tests in the same change.
@@ -19,7 +21,8 @@
    windows, native APIs, paths, packaging, installers, or platform code.
 7. Read [the product identity contract](docs/product-identity.md) before changing
    product names, the desktop binary, icons, PE resources, or initialization.
-8. Use [the task specification](docs/agent-task-template.md) for full changes:
+8. Use [the task specification](docs/agent-task-template.md) for full and
+   governance changes:
    multi-module work or changes to async/resource lifecycle, platform behavior,
    dependencies, protocol/persistence, privacy, or unsafe boundaries. A focused
    change uses the compact record in the workflow. Unresolved acceptance items

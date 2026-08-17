@@ -11,6 +11,17 @@ collects evidence and does not replace it.
 Delete a conditional section only after recording why it is not applicable.
 
 ```markdown
+## Machine change contract
+
+- Change ID, lane, state, and ChangeSpec path:
+- Fixed task-start revision:
+- Repository/verification profile:
+- Protected-change declaration and current outcome:
+- Scope/budget changes since the last validation:
+
+The ChangeSpec owns exact paths, crates, budgets, flags, and required checks;
+do not copy those arrays into this narrative record.
+
 ## Outcome
 
 What user-observable success and recoverable failure behavior must be true?
@@ -122,6 +133,7 @@ expected red failure before implementation.
 
 | Gate | Exact command/action | Result and current commit | Artifact or failure summary |
 |---|---|---|---|
+| ChangeSpec/scope/protected paths |  |  |  |
 | Focused tests |  |  |  |
 | rustfmt |  |  |  |
 | Clippy |  |  |  |
@@ -141,6 +153,7 @@ expected red failure before implementation.
 - Worktree (clean, preserved pre-existing changes, or user-requested
   uncommitted task changes):
 - Decisions and lifecycle changes:
+- Change contract result (`passed`, non-passing status, or `review_required`):
 - Follow-up tasks:
 ```
 

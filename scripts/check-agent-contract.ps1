@@ -11,6 +11,12 @@ $requiredFiles = @(
     "crates/desktop/AGENTS.md",
     "scripts/AGENTS.md",
     ".github/AGENTS.md",
+    ".github/pull_request_template.md",
+    ".agentinfra/policy.json",
+    ".agentinfra/schemas/policy.schema.json",
+    ".agentinfra/schemas/change-spec.schema.json",
+    ".agentinfra/changes/README.md",
+    "docs/change-contract.md",
     "docs/agent-workflow.md",
     "docs/agent-development-standard.md",
     "docs/testing-standard.md",
@@ -25,6 +31,12 @@ $requiredFiles = @(
     "docs/templates/adr.md",
     "docs/templates/lifecycle-ledger.md",
     "docs/agent-risk-allowlist.txt",
+    "scripts/check-policy.ps1",
+    "scripts/check-change-spec.ps1",
+    "scripts/check-scope.ps1",
+    "scripts/check-protected-paths.ps1",
+    "scripts/new-change.ps1",
+    "scripts/test-executable-constitution.ps1",
     "scripts/test.ps1",
     "scripts/smoke.ps1"
 )
@@ -41,6 +53,7 @@ if (Test-Path -LiteralPath $rootContractPath) {
     $rootContract = Get-Content -Raw -LiteralPath $rootContractPath
     foreach ($pointer in @(
         "docs/agent-workflow.md",
+        "docs/change-contract.md",
         "docs/agent-development-standard.md",
         "docs/testing-standard.md",
         "docs/agent-task-template.md",

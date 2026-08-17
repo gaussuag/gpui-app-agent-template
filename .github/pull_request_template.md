@@ -1,3 +1,11 @@
+## Executable change contract
+
+- Change ID / lane / ChangeSpec path:
+- Fixed task-start revision:
+- Verification profile:
+- Protected-path classification and outcome:
+- Scope and budget result:
+
 ## Outcome and scope
 
 Describe user-observable success and recoverable failure behavior. Link the task
@@ -42,6 +50,7 @@ specification for runtime or multi-module work and name explicit exclusions.
 
 | Gate | Exact command/action | Result and commit |
 |---|---|---|
+| ChangeSpec / scope / protected paths |  |  |
 | Focused tests |  |  |
 | `scripts/check.ps1` |  |  |
 | Automated Windows smoke |  |  |
@@ -50,8 +59,9 @@ specification for runtime or multi-module work and name explicit exclusions.
 | Packaging/signing |  |  |
 | Performance/accessibility |  |  |
 
-List failures and unrun checks explicitly; do not infer them from workflow or
-source presence.
+Use the policy result statuses. List `failed`, `skipped`, `not_run`,
+`environment_failure`, `policy_rejected`, and `review_required` explicitly; only
+`passed` is passing. Do not infer a result from workflow or source presence.
 
 ## Commits and handoff
 

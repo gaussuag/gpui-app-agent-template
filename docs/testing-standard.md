@@ -29,6 +29,7 @@ layer only for integration risk that the lower layer cannot detect:
 
 | Layer | Use it for | Stable observation | Canonical command |
 |---|---|---|---|
+| Policy fixture | ChangeSpec semantics, Git scope, budgets, protected paths, lane adapters, and result statuses | public governance scripts against isolated temporary Git repositories | `scripts/test-executable-constitution.ps1` |
 | Pure core | policy, validation, state machine, revision rules | `AppState::dispatch` and `snapshot` | `scripts/test.ps1 -Suite core` |
 | Fake adapter | real filesystem/network/database/device boundary with variable outcomes | typed request/result at the adapter interface | package-focused Cargo test |
 | GPUI headless | Entity ownership, typed Action/Event, focus/input, component wiring, Task completion, notify/render state | public state/snapshot/event plus `TestAppContext` | `scripts/test.ps1 -Suite gpui` |
@@ -44,7 +45,9 @@ Template initialization has a separate generated-repository integration layer:
 `scripts/test-generated-project.ps1` runs after the canonical gate in CI. It is
 separate to avoid recursive checks and proves clean Git initialization, spaced
 paths, Unicode identity, dynamic binary resolution, residual policy, the full
-child gate, and release PE resources.
+child gate, and release PE resources. Initialized product repositories report
+this template-only layer as `skipped`; `skipped` is recorded and is never a
+passing substitute for a required check.
 
 ## Scenario contract
 
@@ -112,10 +115,11 @@ layers. During implementation:
 
 1. run the narrow test and preserve its expected red failure in task notes;
 2. implement the smallest behavior through the production owner/interface;
-3. run `scripts/test.ps1 -Suite core` or `-Suite gpui` until green;
-4. run `scripts/test.ps1 -Suite all` when the slice is integrated;
-5. run `scripts/check.ps1` before completion;
-6. report manual, packaging, performance, accessibility, and hosted CI evidence
+3. run the public ChangeSpec/scope/protected checks for repository changes;
+4. run `scripts/test.ps1 -Suite core` or `-Suite gpui` until green;
+5. run `scripts/test.ps1 -Suite all` when the slice is integrated;
+6. run `scripts/check.ps1` before completion;
+7. report manual, packaging, performance, accessibility, and hosted CI evidence
    separately as passed, failed, or not run.
 
 CI and local automation **MUST NOT** exclude `app-ui` tests or omit the

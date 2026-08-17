@@ -9,12 +9,16 @@ defines when work may advance to the next step.
 | Lane | Use when | Required record and delivery |
 |---|---|---|
 | Read-only | Explain, diagnose, or review without modifying repository files | Establish current facts, report evidence and unverified claims, and do not commit. Stop before the change workflow below. |
-| Focused change | One owner and module; does not change async/resource lifecycle, platform behavior, dependencies, protocol/persistence, privacy, or an unsafe boundary | Record outcome, owner, stable test seam, atomic slice(s), exact evidence, and exclusions in task context. Follow every applicable step below. |
-| Full change | Multiple modules, or any async/resource lifecycle, platform, dependency, protocol/persistence, privacy, or unsafe-boundary change | Use [the full task specification](agent-task-template.md) and follow every step below. |
+| Focused change | One owner and module; no async/resource lifecycle, platform, dependency, protocol/persistence, privacy, unsafe, ownership-direction, or public-layer change | Generate a transient ChangeSpec outside the repository and keep the compact task-context record. Follow every applicable step below. |
+| Full change | Multiple modules, or any Full-change trigger above | Commit a ChangeSpec, use [the full task specification](agent-task-template.md), and follow every step below. |
+| Governance change | Agent authority, machine policy/schema, acceptance controls, protected paths, or trust-control design | Commit a Governance ChangeSpec and full task specification. The outcome remains `review_required`. |
+| Bot change | A declared dependency update confined to policy Bot paths | Generate a transient Bot ChangeSpec. It cannot widen policy scope or alter source/workflows. |
 
 If investigation turns a read-only task into a change, or a focused change
 crosses a full-change boundary, reclassify it before editing further. The lane
 changes evidence depth, not architecture, test, commit, or permission standards.
+The lane persistence, validation, and result rules are authoritative in
+[the executable change contract](change-contract.md).
 
 ## 1. Establish current facts
 
@@ -62,8 +66,15 @@ applicable with current-source evidence.
 
 ## 3. Bound the change
 
+Create the lane's ChangeSpec with `scripts/new-change.ps1`, then complete its
+closed fields and set it to `ready`. Validate it with the policy, ChangeSpec,
+scope, and protected-path entry points listed in
+[the executable change contract](change-contract.md). Re-run those checks when
+the planned surface changes; do not widen the contract silently.
+
 For a focused change, record the compact lane fields in task context. For a full
-change, use [the task specification](agent-task-template.md) to record:
+or governance change, use [the task specification](agent-task-template.md) to
+record:
 
 - user-observable outcome and recovery behavior;
 - included modules/platform tier and explicit exclusions;
@@ -110,7 +121,8 @@ contains only that slice's direct implementation, tests, and documentation.
 
 ## 5. Prove and commit the slice
 
-1. Run the focused command named by the closest scoped instructions. Use the
+1. Run the ChangeSpec, scope, and protected-path checks, then the focused command
+   named by the closest scoped instructions. Use the
    applicable `scripts/test.ps1` layer when Rust behavior changes.
 2. Exercise success, recoverable failure, cancellation/stale completion, and
    close/quit cases that apply to the change.
@@ -138,7 +150,8 @@ local commit, and no task-owned implementation remains only in the working tree.
 
 ## 6. Verify the final commit state and hand off
 
-1. Inspect `git status`. Run `scripts/check.ps1` using the pinned toolchain
+1. Inspect `git status`. Re-run the ChangeSpec, scope, and protected-path checks,
+   then run `scripts/check.ps1` using the pinned toolchain
    against the final commit state. When preserved pre-existing changes would
    contaminate HEAD-only evidence, use a safe isolated detached worktree if the
    environment permits; otherwise report the result as mixed-checkout evidence.
