@@ -267,6 +267,13 @@ if ($Suite -in @("all", "contract")) {
                 & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot
             } "transient.*outside|outside.*transient"
         }
+
+        Invoke-PolicyCase "committed lane requires the repository ChangeSpec directory" {
+            Write-FixtureJson -Path $transientContractSpecPath -Value (New-ChangeSpecFixture)
+            Assert-PolicyRejected {
+                & $changeSpecChecker -ChangeSpecPath $transientContractSpecPath -RepositoryRoot $fixtureRoot
+            } "committed.*\.agentinfra/changes|\.agentinfra/changes.*committed"
+        }
     }
     finally {
         $script:contractTaskStartRevision = ""
@@ -313,6 +320,7 @@ if ($Suite -in @("all", "scope")) {
         $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("commit", "--quiet", "-m", "test: baseline")
         $scopeBase = @(Invoke-FixtureGit -Root $scopeRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
         $scopeSpecPath = Join-Path $tempBase ("gpui-scope-spec-" + [Guid]::NewGuid().ToString("N") + ".json")
+        $scopeCommittedSpecPath = Join-Path $scopeRoot ".agentinfra\changes\EC-TEST-SCOPE.json"
 
         Invoke-PolicyCase "allowed modified path passes scope" {
             $spec = New-ChangeSpecFixture `
@@ -466,9 +474,9 @@ if ($Suite -in @("all", "scope")) {
                     -AllowedPaths @("src/**", "crates/**") `
                     -ForbiddenPaths @("other/**") `
                     -ExpectedCrates @("new-crate")
-                Write-FixtureJson -Path $scopeSpecPath -Value $budgetSpec
+                Write-FixtureJson -Path $scopeCommittedSpecPath -Value $budgetSpec
                 Assert-PolicyRejected {
-                    & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+                    & $scopeChecker -ChangeSpecPath $scopeCommittedSpecPath -RepositoryRoot $scopeRoot
                 } "new_crates|budget"
             }
             finally {
@@ -493,9 +501,9 @@ if ($Suite -in @("all", "scope")) {
                 -TaskStartRevision $scopeBase `
                 -AllowedPaths @("Cargo.toml", "src/**") `
                 -ForbiddenPaths @("other/**")
-            Write-FixtureJson -Path $scopeSpecPath -Value $dependencySpec
+            Write-FixtureJson -Path $scopeCommittedSpecPath -Value $dependencySpec
             Assert-PolicyRejected {
-                & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+                & $scopeChecker -ChangeSpecPath $scopeCommittedSpecPath -RepositoryRoot $scopeRoot
             } "dependency_manifest_files|budget"
         }
 
@@ -510,8 +518,8 @@ if ($Suite -in @("all", "scope")) {
                 -AllowedPaths @("Cargo.toml", "src/**") `
                 -ForbiddenPaths @("other/**") `
                 -DependencyManifestFiles 1
-            Write-FixtureJson -Path $scopeSpecPath -Value $dependencySpec
-            $result = & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot -PassThru
+            Write-FixtureJson -Path $scopeCommittedSpecPath -Value $dependencySpec
+            $result = & $scopeChecker -ChangeSpecPath $scopeCommittedSpecPath -RepositoryRoot $scopeRoot -PassThru
             if ($result.ActualBudgets.dependency_manifest_files -ne 1) {
                 throw "Expected one changed dependency manifest, got $($result.ActualBudgets.dependency_manifest_files)."
             }
@@ -536,9 +544,9 @@ if ($Suite -in @("all", "scope")) {
                     -AllowedPaths @("Cargo.toml", "src/**", "tools/**") `
                     -ForbiddenPaths @("other/**") `
                     -DependencyManifestFiles 1
-                Write-FixtureJson -Path $scopeSpecPath -Value $manifestSpec
+                Write-FixtureJson -Path $scopeCommittedSpecPath -Value $manifestSpec
                 Assert-PolicyRejected {
-                    & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+                    & $scopeChecker -ChangeSpecPath $scopeCommittedSpecPath -RepositoryRoot $scopeRoot
                 } "new_manifests|budget"
             }
             finally {
@@ -559,9 +567,9 @@ if ($Suite -in @("all", "scope")) {
                     -AllowedPaths @("Cargo.toml", "src/**", ".github/workflows/**") `
                     -ForbiddenPaths @("other/**") `
                     -DependencyManifestFiles 1
-                Write-FixtureJson -Path $scopeSpecPath -Value $workflowSpec
+                Write-FixtureJson -Path $scopeCommittedSpecPath -Value $workflowSpec
                 Assert-PolicyRejected {
-                    & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+                    & $scopeChecker -ChangeSpecPath $scopeCommittedSpecPath -RepositoryRoot $scopeRoot
                 } "workflow_files|budget"
             }
             finally {
@@ -647,6 +655,7 @@ if ($Suite -in @("all", "protected")) {
         $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("commit", "--quiet", "-m", "test: protected baseline")
         $protectedBase = @(Invoke-FixtureGit -Root $protectedRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
         $protectedSpecPath = Join-Path $tempBase ("gpui-protected-spec-" + [Guid]::NewGuid().ToString("N") + ".json")
+        $protectedCommittedSpecPath = Join-Path $protectedRoot ".agentinfra\changes\EC-TEST-PROTECTED.json"
 
         Invoke-PolicyCase "focused lane cannot change an acceptance control" {
             $spec = New-ChangeSpecFixture `
@@ -674,9 +683,9 @@ if ($Suite -in @("all", "protected")) {
                 -AllowedPaths @("scripts/check.ps1") `
                 -ForbiddenPaths @("src/**") `
                 -ProtectedFiles 1
-            Write-FixtureJson -Path $protectedSpecPath -Value $spec
+            Write-FixtureJson -Path $protectedCommittedSpecPath -Value $spec
             Assert-PolicyRejected {
-                & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot
+                & $protectedChecker -ChangeSpecPath $protectedCommittedSpecPath -RepositoryRoot $protectedRoot
             } "Protected path 'scripts/check\.ps1'.*acceptance-controls.*governance"
         }
 
@@ -686,8 +695,8 @@ if ($Suite -in @("all", "protected")) {
                 -AllowedPaths @("scripts/check.ps1") `
                 -ForbiddenPaths @("src/**") `
                 -ProtectedFiles 1
-            Write-FixtureJson -Path $protectedSpecPath -Value $spec
-            $result = & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot -PassThru
+            Write-FixtureJson -Path $protectedCommittedSpecPath -Value $spec
+            $result = & $protectedChecker -ChangeSpecPath $protectedCommittedSpecPath -RepositoryRoot $protectedRoot -PassThru
             if ($result.Outcome -ne "review_required") {
                 throw "Expected review_required, got '$($result.Outcome)'."
             }
@@ -704,8 +713,8 @@ if ($Suite -in @("all", "protected")) {
                 -ForbiddenPaths @("src/**") `
                 -ProtectedFiles 2 `
                 -WorkflowFiles 1
-            Write-FixtureJson -Path $protectedSpecPath -Value $spec
-            $result = & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot -PassThru
+            Write-FixtureJson -Path $protectedCommittedSpecPath -Value $spec
+            $result = & $protectedChecker -ChangeSpecPath $protectedCommittedSpecPath -RepositoryRoot $protectedRoot -PassThru
             $workflowMatches = @($result.Matches | Where-Object {
                 $_.Path -eq ".github/workflows/ci.yml" -and $_.GroupId -eq "remote-trust"
             })

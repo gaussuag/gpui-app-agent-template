@@ -44,8 +44,16 @@ $specIsInsideRepository = (
     -not $relativeSpecPath.StartsWith('../') -and
     -not [IO.Path]::IsPathRooted($relativeSpecPath)
 )
-if ($policy.lanes.($spec.lane).persistence -eq "transient" -and $specIsInsideRepository) {
+$persistence = [string]$policy.lanes.($spec.lane).persistence
+if ($persistence -eq "transient" -and $specIsInsideRepository) {
     throw "Lane '$($spec.lane)' requires a transient ChangeSpec outside the repository."
+}
+if ($persistence -eq "committed") {
+    $committedDirectory = [IO.Path]::GetFullPath((Join-Path $root ".agentinfra\changes"))
+    $actualDirectory = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($ChangeSpecPath))
+    if (-not [string]::Equals($actualDirectory, $committedDirectory, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Lane '$($spec.lane)' requires a committed ChangeSpec directly under .agentinfra/changes."
+    }
 }
 if ($spec.state -eq "draft" -and -not $AllowDraft) {
     throw "Draft ChangeSpec '$($spec.change_id)' is not executable. Complete it and set state to ready."
