@@ -38,7 +38,8 @@ function ConvertTo-ECNormalizedRepoPath {
     }
 
     $segments = @($normalized -split '/')
-    if ($segments.Count -eq 0 -or $segments | Where-Object { $_ -in @('', '.', '..') }) {
+    $invalidSegments = @($segments | Where-Object { $_ -in @('', '.', '..') })
+    if ($segments.Count -eq 0 -or $invalidSegments.Count -gt 0) {
         throw "Repository paths cannot contain empty, current-directory, or parent-directory segments: $Path"
     }
     if (-not $AllowGlob -and $normalized.IndexOfAny([char[]]@('*', '?', '[', ']')) -ge 0) {
@@ -56,7 +57,192 @@ function ConvertTo-ECNormalizedRepoPath {
     return $normalized
 }
 
+function ConvertTo-ECGlobRegex {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Glob)
+
+    $normalized = ConvertTo-ECNormalizedRepoPath -Path $Glob -AllowGlob
+    $builder = [Text.StringBuilder]::new('^')
+    for ($index = 0; $index -lt $normalized.Length; $index++) {
+        $character = $normalized[$index]
+        if ($character -eq '*') {
+            $isDouble = $index + 1 -lt $normalized.Length -and $normalized[$index + 1] -eq '*'
+            if ($isDouble) {
+                $index++
+                if ($index + 1 -lt $normalized.Length -and $normalized[$index + 1] -eq '/') {
+                    $index++
+                    $null = $builder.Append('(?:.*/)?')
+                }
+                else {
+                    $null = $builder.Append('.*')
+                }
+            }
+            else {
+                $null = $builder.Append('[^/]*')
+            }
+        }
+        elseif ($character -eq '?') {
+            $null = $builder.Append('[^/]')
+        }
+        else {
+            $null = $builder.Append([Regex]::Escape([string]$character))
+        }
+    }
+    $null = $builder.Append('$')
+    return $builder.ToString()
+}
+
+function Test-ECRepoGlob {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Glob
+    )
+
+    $normalizedPath = ConvertTo-ECNormalizedRepoPath -Path $Path
+    $regex = ConvertTo-ECGlobRegex -Glob $Glob
+    return [Regex]::IsMatch(
+        $normalizedPath,
+        $regex,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::CultureInvariant
+    )
+}
+
+function Invoke-ECGitRaw {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = 'git'
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+    $startInfo.ArgumentList.Add('-C')
+    $startInfo.ArgumentList.Add([IO.Path]::GetFullPath($RepositoryRoot))
+    foreach ($argument in $Arguments) {
+        $startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            throw 'Git did not start.'
+        }
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $output = $standardOutput.GetAwaiter().GetResult()
+        $errorOutput = $standardError.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) {
+            throw "git $($Arguments -join ' ') failed with exit code $($process.ExitCode): $($errorOutput.Trim())"
+        }
+        return $output
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+function ConvertFrom-ECNameStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Raw,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+
+    if ([string]::IsNullOrEmpty($Raw)) {
+        return
+    }
+
+    $tokens = @($Raw.Split([char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries))
+    $index = 0
+    while ($index -lt $tokens.Count) {
+        $status = $tokens[$index]
+        $index++
+        if ($status -match '^(R|C)\d*$') {
+            if ($index + 1 -ge $tokens.Count) {
+                throw "Malformed git name-status output for $Source."
+            }
+            $oldPath = ConvertTo-ECNormalizedRepoPath -Path $tokens[$index]
+            $newPath = ConvertTo-ECNormalizedRepoPath -Path $tokens[$index + 1]
+            $index += 2
+            [pscustomobject]@{ Path = $oldPath; Status = "$status-old"; Source = $Source }
+            [pscustomobject]@{ Path = $newPath; Status = "$status-new"; Source = $Source }
+            continue
+        }
+        if ($index -ge $tokens.Count) {
+            throw "Malformed git name-status output for $Source."
+        }
+        $path = ConvertTo-ECNormalizedRepoPath -Path $tokens[$index]
+        $index++
+        [pscustomobject]@{ Path = $path; Status = $status; Source = $Source }
+    }
+}
+
+function Get-ECChangedPaths {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$TaskStartRevision,
+        [string]$HeadRevision = 'HEAD'
+    )
+
+    $root = [IO.Path]::GetFullPath($RepositoryRoot)
+    $rawRecords = [Collections.Generic.List[object]]::new()
+    $sources = @(
+        @{ Name = 'committed'; Arguments = @('diff', '--name-status', '-z', '--find-renames', '--find-copies-harder', "$TaskStartRevision...$HeadRevision", '--') },
+        @{ Name = 'staged'; Arguments = @('diff', '--cached', '--name-status', '-z', '--find-renames', '--find-copies-harder', '--') },
+        @{ Name = 'working'; Arguments = @('diff', '--name-status', '-z', '--find-renames', '--find-copies-harder', '--') }
+    )
+    foreach ($source in $sources) {
+        $raw = Invoke-ECGitRaw -RepositoryRoot $root -Arguments $source.Arguments
+        foreach ($record in @(ConvertFrom-ECNameStatus -Raw $raw -Source $source.Name)) {
+            $rawRecords.Add($record)
+        }
+    }
+
+    $untracked = Invoke-ECGitRaw -RepositoryRoot $root -Arguments @('ls-files', '--others', '--exclude-standard', '-z')
+    if (-not [string]::IsNullOrEmpty($untracked)) {
+        foreach ($path in $untracked.Split([char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries)) {
+            $rawRecords.Add([pscustomobject]@{
+                Path = ConvertTo-ECNormalizedRepoPath -Path $path
+                Status = 'A'
+                Source = 'untracked'
+            })
+        }
+    }
+
+    $byPath = @{}
+    foreach ($record in $rawRecords) {
+        if (-not $byPath.ContainsKey($record.Path)) {
+            $byPath[$record.Path] = [pscustomobject]@{
+                Path = $record.Path
+                Statuses = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+                Sources = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            }
+        }
+        $null = $byPath[$record.Path].Statuses.Add($record.Status)
+        $null = $byPath[$record.Path].Sources.Add($record.Source)
+    }
+
+    foreach ($entry in @($byPath.Values | Sort-Object Path)) {
+        [pscustomobject]@{
+            Path = $entry.Path
+            Statuses = @($entry.Statuses | Sort-Object)
+            Sources = @($entry.Sources | Sort-Object)
+        }
+    }
+}
+
 Export-ModuleMember -Function @(
     "ConvertTo-ECNormalizedRepoPath",
-    "Read-ECJsonFile"
+    "Get-ECChangedPaths",
+    "Read-ECJsonFile",
+    "Test-ECRepoGlob"
 )
