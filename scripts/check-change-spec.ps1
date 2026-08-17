@@ -38,6 +38,15 @@ if (-not $schemaResult) {
 
 $spec = Read-ECJsonFile -Path $ChangeSpecPath
 $policy = Read-ECJsonFile -Path $PolicyPath
+$relativeSpecPath = [IO.Path]::GetRelativePath($root, [IO.Path]::GetFullPath($ChangeSpecPath)).Replace('\', '/')
+$specIsInsideRepository = (
+    $relativeSpecPath -ne '..' -and
+    -not $relativeSpecPath.StartsWith('../') -and
+    -not [IO.Path]::IsPathRooted($relativeSpecPath)
+)
+if ($policy.lanes.($spec.lane).persistence -eq "transient" -and $specIsInsideRepository) {
+    throw "Lane '$($spec.lane)' requires a transient ChangeSpec outside the repository."
+}
 if ($spec.state -eq "draft" -and -not $AllowDraft) {
     throw "Draft ChangeSpec '$($spec.change_id)' is not executable. Complete it and set state to ready."
 }

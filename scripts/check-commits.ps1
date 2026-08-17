@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$CommitRange
+    [string]$CommitRange,
+    [switch]$Bot
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,7 +41,7 @@ try {
         }
 
         $message = (@(& git show -s --format=%B $commit) -join "`n").TrimEnd()
-        & $validator -Message $message
+        & $validator -Message $message -Bot:$Bot
         if ($LASTEXITCODE -ne 0) {
             throw "Commit message validation failed for $commit."
         }

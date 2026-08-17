@@ -53,6 +53,21 @@ if (-not $relativeCandidate.StartsWith('../') -and $relativeCandidate -ne '..') 
 }
 
 foreach ($change in $changes) {
+    if ($contract.Spec.lane -eq "bot") {
+        $botForbidden = @($contract.Policy.bot.forbidden_paths | Where-Object {
+            Test-ECRepoGlob -Path $change.Path -Glob $_
+        })
+        if ($botForbidden.Count -gt 0) {
+            throw "Bot path '$($change.Path)' is forbidden by dependency policy pattern '$($botForbidden[0])'."
+        }
+        $botAllowed = @($contract.Policy.bot.allowed_paths | Where-Object {
+            Test-ECRepoGlob -Path $change.Path -Glob $_
+        })
+        if ($botAllowed.Count -eq 0) {
+            throw "Bot path '$($change.Path)' is outside the dependency policy allowlist."
+        }
+    }
+
     $forbidden = @($contract.Spec.scope.forbidden_paths | Where-Object {
         Test-ECRepoGlob -Path $change.Path -Glob $_
     })

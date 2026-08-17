@@ -240,9 +240,75 @@ function Get-ECChangedPaths {
     }
 }
 
+function Resolve-ECVerificationStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Policy,
+        [Parameter(Mandatory = $true)][string[]]$RequiredChecks,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Results,
+        [ValidateSet('eligible', 'review_required')][string]$ContractOutcome = 'eligible'
+    )
+
+    $registeredChecks = @($Policy.checks.registry)
+    $duplicateRequired = @($RequiredChecks | Group-Object | Where-Object { $_.Count -gt 1 } | Select-Object -First 1)
+    if ($duplicateRequired.Count -gt 0) {
+        throw "Required check '$($duplicateRequired[0].Name)' is duplicated."
+    }
+    foreach ($requiredCheck in $RequiredChecks) {
+        if ($requiredCheck -notin $registeredChecks) {
+            throw "Required check '$requiredCheck' is not registered by policy."
+        }
+    }
+
+    $byCheck = @{}
+    foreach ($result in $Results) {
+        $check = [string]$result.check
+        $status = [string]$result.status
+        if ([string]::IsNullOrWhiteSpace($check) -or $check -notin $registeredChecks) {
+            throw "Verification result references unregistered check '$check'."
+        }
+        if ($status -notin @($Policy.result_statuses)) {
+            throw "Verification result for '$check' has unknown status '$status'."
+        }
+        if ($byCheck.ContainsKey($check)) {
+            throw "Verification results contain duplicate check '$check'."
+        }
+        $byCheck[$check] = $status
+    }
+
+    $normalizedResults = @($RequiredChecks | ForEach-Object {
+        $status = if ($byCheck.ContainsKey($_)) { [string]$byCheck[$_] } else { 'not_run' }
+        [pscustomobject]@{ check = $_; status = $status }
+    })
+    $nonPassing = @($normalizedResults | Where-Object {
+        $_.status -notin @($Policy.passing_statuses)
+    })
+    $missing = @($normalizedResults | Where-Object { $_.status -eq 'not_run' } | ForEach-Object { $_.check })
+
+    if ($ContractOutcome -eq 'review_required') {
+        $status = 'review_required'
+    }
+    elseif ($nonPassing.Count -eq 0) {
+        $status = 'passed'
+    }
+    else {
+        $priority = @('policy_rejected', 'failed', 'environment_failure', 'review_required', 'not_run', 'skipped')
+        $status = @($priority | Where-Object { $_ -in @($nonPassing.status) } | Select-Object -First 1)[0]
+    }
+
+    return [pscustomobject]@{
+        Status = $status
+        Passing = $status -in @($Policy.passing_statuses)
+        Checks = $normalizedResults
+        MissingChecks = $missing
+        NonPassingChecks = @($nonPassing)
+    }
+}
+
 Export-ModuleMember -Function @(
     "ConvertTo-ECNormalizedRepoPath",
     "Get-ECChangedPaths",
     "Read-ECJsonFile",
+    "Resolve-ECVerificationStatus",
     "Test-ECRepoGlob"
 )

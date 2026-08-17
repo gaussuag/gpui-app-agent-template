@@ -10,8 +10,11 @@ $policyChecker = Join-Path $PSScriptRoot "check-policy.ps1"
 $changeSpecChecker = Join-Path $PSScriptRoot "check-change-spec.ps1"
 $scopeChecker = Join-Path $PSScriptRoot "check-scope.ps1"
 $protectedChecker = Join-Path $PSScriptRoot "check-protected-paths.ps1"
+$newChangeGenerator = Join-Path $PSScriptRoot "new-change.ps1"
+$commitMessageChecker = Join-Path $PSScriptRoot "check-commit-message.ps1"
 $passed = 0
 $failed = 0
+$contractTaskStartRevision = ""
 
 function Invoke-PolicyCase {
     param(
@@ -76,7 +79,14 @@ function New-ChangeSpecFixture {
         ),
         [bool]$ProtectedChange = $true,
         [bool]$ChangesDependencies = $false,
-        [string]$TaskStartRevision = (& git -C $repositoryRoot rev-parse HEAD).Trim(),
+        [string]$TaskStartRevision = $(
+            if (-not [string]::IsNullOrWhiteSpace($script:contractTaskStartRevision)) {
+                $script:contractTaskStartRevision
+            }
+            else {
+                (& git -C $repositoryRoot rev-parse HEAD).Trim()
+            }
+        ),
         [string[]]$AllowedPaths = @("scripts/**"),
         [string[]]$ForbiddenPaths = @("crates/**"),
         [string[]]$ExpectedCrates = @(),
@@ -155,8 +165,22 @@ if ($Suite -in @("all", "contract")) {
 
     $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("gpui-contract-" + [Guid]::NewGuid().ToString("N"))
     try {
-        New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
-        $specPath = Join-Path $fixtureRoot "change-spec.json"
+        foreach ($directory in @(".agentinfra\changes", ".agentinfra\schemas")) {
+            New-Item -ItemType Directory -Path (Join-Path $fixtureRoot $directory) -Force | Out-Null
+        }
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Destination (Join-Path $fixtureRoot ".agentinfra\policy.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\policy.schema.json") -Destination (Join-Path $fixtureRoot ".agentinfra\schemas\policy.schema.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\change-spec.schema.json") -Destination (Join-Path $fixtureRoot ".agentinfra\schemas\change-spec.schema.json")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("init", "--quiet")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("config", "user.name", "Executable Constitution Tests")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("config", "user.email", "ec-tests@example.invalid")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("config", "core.autocrlf", "false")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("add", ".")
+        $null = Invoke-FixtureGit -Root $fixtureRoot -Arguments @("commit", "--quiet", "-m", "test: contract baseline")
+        $script:contractTaskStartRevision = @(Invoke-FixtureGit -Root $fixtureRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
+
+        $specPath = Join-Path $fixtureRoot ".agentinfra\changes\EC-TEST-CONTRACT.json"
+        $transientContractSpecPath = "$fixtureRoot-focused.json"
         $policyFixturePath = Join-Path $fixtureRoot "policy.json"
 
         Invoke-PolicyCase "governance policy cannot carry arbitrary commands" {
@@ -165,7 +189,7 @@ if ($Suite -in @("all", "contract")) {
             $policy | Add-Member -NotePropertyName "commands" -NotePropertyValue @("untrusted")
             Write-FixtureJson -Path $policyFixturePath -Value $policy
             Assert-PolicyRejected {
-                & $policyChecker -RepositoryRoot $repositoryRoot -PolicyPath $policyFixturePath
+                & $policyChecker -RepositoryRoot $fixtureRoot -PolicyPath $policyFixturePath
             } "schema|additional|commands"
         }
 
@@ -175,13 +199,13 @@ if ($Suite -in @("all", "contract")) {
             $policy.protected_paths = @($policy.protected_paths) + @($policy.protected_paths[0])
             Write-FixtureJson -Path $policyFixturePath -Value $policy
             Assert-PolicyRejected {
-                & $policyChecker -RepositoryRoot $repositoryRoot -PolicyPath $policyFixturePath
+                & $policyChecker -RepositoryRoot $fixtureRoot -PolicyPath $policyFixturePath
             } "duplicate protected path group"
         }
 
         Invoke-PolicyCase "valid governance ChangeSpec is review-required" {
             Write-FixtureJson -Path $specPath -Value (New-ChangeSpecFixture)
-            $result = & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $repositoryRoot -PassThru
+            $result = & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot -PassThru
             if ($result.Outcome -ne "review_required") {
                 throw "Governance ChangeSpec returned '$($result.Outcome)' instead of review_required."
             }
@@ -192,7 +216,7 @@ if ($Suite -in @("all", "contract")) {
             $spec.commands = @("Invoke-Expression 'untrusted'")
             Write-FixtureJson -Path $specPath -Value $spec
             Assert-PolicyRejected {
-                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $repositoryRoot
+                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot
             } "schema|additional|commands"
         }
 
@@ -203,9 +227,9 @@ if ($Suite -in @("all", "contract")) {
                 -RequiredChecks @("change-spec", "scope", "protected-paths") `
                 -ProtectedChange $false `
                 -ChangesDependencies $true
-            Write-FixtureJson -Path $specPath -Value $spec
+            Write-FixtureJson -Path $transientContractSpecPath -Value $spec
             Assert-PolicyRejected {
-                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $repositoryRoot
+                & $changeSpecChecker -ChangeSpecPath $transientContractSpecPath -RepositoryRoot $fixtureRoot
             } "focused.*dependency|dependency.*focused"
         }
 
@@ -213,7 +237,7 @@ if ($Suite -in @("all", "contract")) {
             $spec = New-ChangeSpecFixture -RequiredChecks @("change-spec")
             Write-FixtureJson -Path $specPath -Value $spec
             Assert-PolicyRejected {
-                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $repositoryRoot
+                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot
             } "required checks|profile"
         }
 
@@ -223,14 +247,30 @@ if ($Suite -in @("all", "contract")) {
                 $spec.scope.allowed_paths = @($invalidPath)
                 Write-FixtureJson -Path $specPath -Value $spec
                 Assert-PolicyRejected {
-                    & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $repositoryRoot
+                    & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot
                 } "relative|parent-directory|catch-all|absolute|drive|UNC|device"
             }
         }
+
+        Invoke-PolicyCase "transient lane cannot persist its ChangeSpec in the repository" {
+            $spec = New-ChangeSpecFixture `
+                -Lane "focused" `
+                -Profile "focused" `
+                -RequiredChecks @("change-spec", "scope", "protected-paths") `
+                -ProtectedChange $false
+            Write-FixtureJson -Path $specPath -Value $spec
+            Assert-PolicyRejected {
+                & $changeSpecChecker -ChangeSpecPath $specPath -RepositoryRoot $fixtureRoot
+            } "transient.*outside|outside.*transient"
+        }
     }
     finally {
+        $script:contractTaskStartRevision = ""
         if (Test-Path -LiteralPath $fixtureRoot) {
             Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
+        }
+        if ($null -ne $transientContractSpecPath -and (Test-Path -LiteralPath $transientContractSpecPath)) {
+            Remove-Item -LiteralPath $transientContractSpecPath -Force
         }
     }
 }
@@ -238,6 +278,7 @@ if ($Suite -in @("all", "contract")) {
 if ($Suite -in @("all", "scope")) {
     $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
     $scopeRoot = [IO.Path]::GetFullPath((Join-Path $tempBase ("gpui-scope-" + [Guid]::NewGuid().ToString("N"))))
+    $scopeSpecPath = $null
     try {
         New-Item -ItemType Directory -Path $scopeRoot | Out-Null
         foreach ($directory in @(".agentinfra\changes", ".agentinfra\schemas", "src", "other")) {
@@ -267,7 +308,7 @@ if ($Suite -in @("all", "scope")) {
         $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("add", ".")
         $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("commit", "--quiet", "-m", "test: baseline")
         $scopeBase = @(Invoke-FixtureGit -Root $scopeRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
-        $scopeSpecPath = Join-Path $scopeRoot ".agentinfra\changes\EC-TEST-SCOPE.json"
+        $scopeSpecPath = Join-Path $tempBase ("gpui-scope-spec-" + [Guid]::NewGuid().ToString("N") + ".json")
 
         Invoke-PolicyCase "allowed modified path passes scope" {
             $spec = New-ChangeSpecFixture `
@@ -525,6 +566,46 @@ if ($Suite -in @("all", "scope")) {
                 }
             }
         }
+
+        Invoke-PolicyCase "bot scope cannot widen beyond dependency policy" {
+            $botSpec = New-ChangeSpecFixture `
+                -Lane "bot" `
+                -Profile "bot" `
+                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate") `
+                -ProtectedChange $false `
+                -ChangesDependencies $true `
+                -TaskStartRevision $scopeBase `
+                -AllowedPaths @("Cargo.toml", "src/**") `
+                -ForbiddenPaths @("other/**") `
+                -DependencyManifestFiles 1
+            Write-FixtureJson -Path $scopeSpecPath -Value $botSpec
+            Assert-PolicyRejected {
+                & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+            } "Bot path 'src/|bot.*dependency policy|dependency policy.*src/"
+        }
+
+        Invoke-PolicyCase "bot scope permits only declared dependency files" {
+            $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("add", "--all")
+            $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("commit", "--quiet", "-m", "test: prepare bot baseline")
+            $botBase = @(Invoke-FixtureGit -Root $scopeRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
+            [IO.File]::WriteAllText(
+                (Join-Path $scopeRoot "Cargo.toml"),
+                "[workspace]`nmembers = []`nresolver = `"2`"`nexclude = []`n",
+                [Text.UTF8Encoding]::new($false)
+            )
+            $botSpec = New-ChangeSpecFixture `
+                -Lane "bot" `
+                -Profile "bot" `
+                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate") `
+                -ProtectedChange $false `
+                -ChangesDependencies $true `
+                -TaskStartRevision $botBase `
+                -AllowedPaths @("Cargo.toml") `
+                -ForbiddenPaths @("src/**", ".github/workflows/**") `
+                -DependencyManifestFiles 1
+            Write-FixtureJson -Path $scopeSpecPath -Value $botSpec
+            & $scopeChecker -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot
+        }
     }
     finally {
         if (Test-Path -LiteralPath $scopeRoot) {
@@ -534,12 +615,16 @@ if ($Suite -in @("all", "scope")) {
             }
             Remove-Item -LiteralPath $resolvedScopeRoot -Recurse -Force
         }
+        if ($null -ne $scopeSpecPath -and (Test-Path -LiteralPath $scopeSpecPath)) {
+            Remove-Item -LiteralPath $scopeSpecPath -Force
+        }
     }
 }
 
 if ($Suite -in @("all", "protected")) {
     $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
     $protectedRoot = [IO.Path]::GetFullPath((Join-Path $tempBase ("gpui-protected-" + [Guid]::NewGuid().ToString("N"))))
+    $protectedSpecPath = $null
     try {
         foreach ($directory in @(".agentinfra\changes", ".agentinfra\schemas", ".github\workflows", "scripts")) {
             New-Item -ItemType Directory -Path (Join-Path $protectedRoot $directory) -Force | Out-Null
@@ -557,7 +642,7 @@ if ($Suite -in @("all", "protected")) {
         $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("add", ".")
         $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("commit", "--quiet", "-m", "test: protected baseline")
         $protectedBase = @(Invoke-FixtureGit -Root $protectedRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
-        $protectedSpecPath = Join-Path $protectedRoot ".agentinfra\changes\EC-TEST-PROTECTED.json"
+        $protectedSpecPath = Join-Path $tempBase ("gpui-protected-spec-" + [Guid]::NewGuid().ToString("N") + ".json")
 
         Invoke-PolicyCase "focused lane cannot change an acceptance control" {
             $spec = New-ChangeSpecFixture `
@@ -632,6 +717,192 @@ if ($Suite -in @("all", "protected")) {
                 throw "Refusing to remove protected-path fixture outside the system temporary directory: $resolvedProtectedRoot"
             }
             Remove-Item -LiteralPath $resolvedProtectedRoot -Recurse -Force
+        }
+        if ($null -ne $protectedSpecPath -and (Test-Path -LiteralPath $protectedSpecPath)) {
+            Remove-Item -LiteralPath $protectedSpecPath -Force
+        }
+    }
+}
+
+if ($Suite -in @("all", "adapters")) {
+    $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    $adapterRoot = [IO.Path]::GetFullPath((Join-Path $tempBase ("gpui-adapters-" + [Guid]::NewGuid().ToString("N"))))
+    try {
+        foreach ($directory in @(".agentinfra\changes", ".agentinfra\schemas", "src")) {
+            New-Item -ItemType Directory -Path (Join-Path $adapterRoot $directory) -Force | Out-Null
+        }
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Destination (Join-Path $adapterRoot ".agentinfra\policy.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\policy.schema.json") -Destination (Join-Path $adapterRoot ".agentinfra\schemas\policy.schema.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\change-spec.schema.json") -Destination (Join-Path $adapterRoot ".agentinfra\schemas\change-spec.schema.json")
+        [IO.File]::WriteAllText((Join-Path $adapterRoot "src\lib.rs"), "pub fn fixture() {}`n", [Text.UTF8Encoding]::new($false))
+
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("init", "--quiet")
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("config", "user.name", "Executable Constitution Tests")
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("config", "user.email", "ec-tests@example.invalid")
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("config", "core.autocrlf", "false")
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("add", ".")
+        $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("commit", "--quiet", "-m", "test: adapter baseline")
+
+        Invoke-PolicyCase "full ChangeSpec generator uses committed template location" {
+            $result = & $newChangeGenerator `
+                -ChangeId "EC-ADAPTER-FULL" `
+                -Title "Exercise the full adapter" `
+                -Lane "full" `
+                -ChangeKind "feature" `
+                -Outcome "Produce a closed draft for a full template change." `
+                -Recovery "Delete the draft before implementation." `
+                -AllowedPaths @("src/**") `
+                -Exclusions @("No dependency or platform changes.") `
+                -RepositoryRoot $adapterRoot `
+                -PassThru
+            $expectedPath = [IO.Path]::GetFullPath((Join-Path $adapterRoot ".agentinfra\changes\EC-ADAPTER-FULL.json"))
+            if ($result.Path -ne $expectedPath -or $result.Spec.state -ne "draft" -or $result.Spec.verification.profile -ne "template") {
+                throw "Full generator did not produce the expected committed template draft."
+            }
+            & $changeSpecChecker -ChangeSpecPath $result.Path -RepositoryRoot $adapterRoot -AllowDraft | Out-Null
+        }
+
+        Invoke-PolicyCase "focused ChangeSpec generator uses transient location" {
+            $result = $null
+            try {
+                $result = & $newChangeGenerator `
+                    -ChangeId "EC-ADAPTER-FOCUSED" `
+                    -Title "Exercise the focused adapter" `
+                    -Lane "focused" `
+                    -ChangeKind "fix" `
+                    -Outcome "Produce a transient focused draft." `
+                    -Recovery "Delete the transient draft." `
+                    -AllowedPaths @("src/lib.rs") `
+                    -Exclusions @("No architecture changes.") `
+                    -RepositoryRoot $adapterRoot `
+                    -PassThru
+                $relative = [IO.Path]::GetRelativePath($adapterRoot, $result.Path).Replace('\', '/')
+                if ($relative -ne '..' -and -not $relative.StartsWith('../') -and -not [IO.Path]::IsPathRooted($relative)) {
+                    throw "Focused generator persisted its ChangeSpec inside the repository."
+                }
+                if ($result.Persistence -ne "transient" -or $result.Spec.verification.profile -ne "focused") {
+                    throw "Focused generator did not derive transient/focused policy values."
+                }
+                & $changeSpecChecker -ChangeSpecPath $result.Path -RepositoryRoot $adapterRoot -AllowDraft | Out-Null
+            }
+            finally {
+                if ($null -ne $result -and (Test-Path -LiteralPath $result.Path)) {
+                    Remove-Item -LiteralPath $result.Path -Force
+                }
+            }
+        }
+
+        Invoke-PolicyCase "transient generator rejects a repository output path" {
+            Assert-PolicyRejected {
+                & $newChangeGenerator `
+                    -ChangeId "EC-ADAPTER-BAD-PATH" `
+                    -Title "Reject a persistent focused draft" `
+                    -Lane "focused" `
+                    -ChangeKind "fix" `
+                    -Outcome "Reject the invalid location." `
+                    -Recovery "No file should be created." `
+                    -AllowedPaths @("src/lib.rs") `
+                    -Exclusions @("No implementation changes.") `
+                    -OutputPath ".agentinfra/changes/EC-ADAPTER-BAD-PATH.json" `
+                    -RepositoryRoot $adapterRoot
+            } "transient.*outside|outside.*transient"
+        }
+
+        Invoke-PolicyCase "bot ChangeSpec generator derives dependency contract" {
+            $result = $null
+            try {
+                $result = & $newChangeGenerator `
+                    -ChangeId "EC-ADAPTER-BOT" `
+                    -Title "Exercise the bot adapter" `
+                    -Lane "bot" `
+                    -ChangeKind "dependency" `
+                    -Outcome "Produce a constrained dependency draft." `
+                    -Recovery "Delete the transient draft." `
+                    -AllowedPaths @("Cargo.lock") `
+                    -Exclusions @("No source or workflow changes.") `
+                    -ChangesDependencies `
+                    -RepositoryRoot $adapterRoot `
+                    -PassThru
+                if ($result.Persistence -ne "transient" -or $result.Spec.verification.profile -ne "bot") {
+                    throw "Bot generator did not derive transient/bot policy values."
+                }
+                & $changeSpecChecker -ChangeSpecPath $result.Path -RepositoryRoot $adapterRoot -AllowDraft | Out-Null
+            }
+            finally {
+                if ($null -ne $result -and (Test-Path -LiteralPath $result.Path)) {
+                    Remove-Item -LiteralPath $result.Path -Force
+                }
+            }
+        }
+
+        Invoke-PolicyCase "missing required verification resolves to not_run" {
+            Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
+            $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
+                ConvertFrom-Json -Depth 100
+            $result = Resolve-ECVerificationStatus `
+                -Policy $policy `
+                -RequiredChecks @("scope", "repository-full-gate") `
+                -Results @([pscustomobject]@{ check = "scope"; status = "passed" })
+            if ($result.Status -ne "not_run" -or $result.Passing) {
+                throw "Missing required checks must resolve to a non-passing not_run status."
+            }
+        }
+
+        Invoke-PolicyCase "only passed verification statuses can pass" {
+            Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
+            $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
+                ConvertFrom-Json -Depth 100
+            foreach ($status in @("failed", "skipped", "environment_failure", "policy_rejected", "review_required")) {
+                $result = Resolve-ECVerificationStatus `
+                    -Policy $policy `
+                    -RequiredChecks @("scope") `
+                    -Results @([pscustomobject]@{ check = "scope"; status = $status })
+                if ($result.Passing -or $result.Status -ne $status) {
+                    throw "Status '$status' was not preserved as a non-passing result."
+                }
+            }
+
+            $passedResult = Resolve-ECVerificationStatus `
+                -Policy $policy `
+                -RequiredChecks @("scope", "protected-paths") `
+                -Results @(
+                    [pscustomobject]@{ check = "scope"; status = "passed" },
+                    [pscustomobject]@{ check = "protected-paths"; status = "passed" }
+                )
+            if (-not $passedResult.Passing -or $passedResult.Status -ne "passed") {
+                throw "All required passed checks should resolve to passed."
+            }
+        }
+
+        Invoke-PolicyCase "governance outcome cannot be promoted by green checks" {
+            Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
+            $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
+                ConvertFrom-Json -Depth 100
+            $result = Resolve-ECVerificationStatus `
+                -Policy $policy `
+                -RequiredChecks @("scope") `
+                -Results @([pscustomobject]@{ check = "scope"; status = "passed" }) `
+                -ContractOutcome "review_required"
+            if ($result.Passing -or $result.Status -ne "review_required") {
+                throw "Governance outcome must remain review_required after green checks."
+            }
+        }
+
+        Invoke-PolicyCase "dependency bot message requires explicit bot mode" {
+            $botMessage = "Bump serde from 1.0.203 to 1.0.204"
+            Assert-PolicyRejected {
+                & $commitMessageChecker -Message $botMessage
+            } "subject|body|blank line"
+            & $commitMessageChecker -Message $botMessage -Bot
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $adapterRoot) {
+            $resolvedAdapterRoot = (Resolve-Path -LiteralPath $adapterRoot).Path
+            if (-not $resolvedAdapterRoot.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to remove adapter fixture outside the system temporary directory: $resolvedAdapterRoot"
+            }
+            Remove-Item -LiteralPath $resolvedAdapterRoot -Recurse -Force
         }
     }
 }

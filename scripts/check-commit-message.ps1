@@ -5,7 +5,9 @@ param(
 
     [Parameter(Mandatory = $true, ParameterSetName = "Text")]
     [AllowEmptyString()]
-    [string]$Message
+    [string]$Message,
+
+    [switch]$Bot
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +32,14 @@ if ($lines.Count -eq 0) {
 }
 
 $subject = $lines[0]
+if ($Bot) {
+    $botSubjectPattern = '^Bump [A-Za-z0-9@._/-]+ from [A-Za-z0-9.+:_-]+ to [A-Za-z0-9.+:_-]+$'
+    if ($subject -cnotmatch $botSubjectPattern) {
+        throw "Bot commit message policy failed: subject must match 'Bump <dependency> from <old> to <new>'."
+    }
+    Write-Host "Dependency bot commit message accepted: $subject"
+    return
+}
 if ($subject -match '^Merge\s+') {
     Write-Host "Generated merge commit message accepted."
     exit 0
