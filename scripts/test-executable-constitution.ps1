@@ -9,6 +9,7 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $policyChecker = Join-Path $PSScriptRoot "check-policy.ps1"
 $changeSpecChecker = Join-Path $PSScriptRoot "check-change-spec.ps1"
 $scopeChecker = Join-Path $PSScriptRoot "check-scope.ps1"
+$protectedChecker = Join-Path $PSScriptRoot "check-protected-paths.ps1"
 $passed = 0
 $failed = 0
 
@@ -532,6 +533,105 @@ if ($Suite -in @("all", "scope")) {
                 throw "Refusing to remove scope fixture outside the system temporary directory: $resolvedScopeRoot"
             }
             Remove-Item -LiteralPath $resolvedScopeRoot -Recurse -Force
+        }
+    }
+}
+
+if ($Suite -in @("all", "protected")) {
+    $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    $protectedRoot = [IO.Path]::GetFullPath((Join-Path $tempBase ("gpui-protected-" + [Guid]::NewGuid().ToString("N"))))
+    try {
+        foreach ($directory in @(".agentinfra\changes", ".agentinfra\schemas", ".github\workflows", "scripts")) {
+            New-Item -ItemType Directory -Path (Join-Path $protectedRoot $directory) -Force | Out-Null
+        }
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Destination (Join-Path $protectedRoot ".agentinfra\policy.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\policy.schema.json") -Destination (Join-Path $protectedRoot ".agentinfra\schemas\policy.schema.json")
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ".agentinfra\schemas\change-spec.schema.json") -Destination (Join-Path $protectedRoot ".agentinfra\schemas\change-spec.schema.json")
+        [IO.File]::WriteAllText((Join-Path $protectedRoot "scripts\check.ps1"), "Write-Host 'baseline'`n", [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $protectedRoot ".github\workflows\ci.yml"), "name: baseline`n", [Text.UTF8Encoding]::new($false))
+
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("init", "--quiet")
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("config", "user.name", "Executable Constitution Tests")
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("config", "user.email", "ec-tests@example.invalid")
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("config", "core.autocrlf", "false")
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("add", ".")
+        $null = Invoke-FixtureGit -Root $protectedRoot -Arguments @("commit", "--quiet", "-m", "test: protected baseline")
+        $protectedBase = @(Invoke-FixtureGit -Root $protectedRoot -Arguments @("rev-parse", "HEAD"))[-1].ToString().Trim()
+        $protectedSpecPath = Join-Path $protectedRoot ".agentinfra\changes\EC-TEST-PROTECTED.json"
+
+        Invoke-PolicyCase "focused lane cannot change an acceptance control" {
+            $spec = New-ChangeSpecFixture `
+                -Lane "focused" `
+                -Profile "focused" `
+                -RequiredChecks @("change-spec", "scope", "protected-paths") `
+                -ProtectedChange $false `
+                -TaskStartRevision $protectedBase `
+                -AllowedPaths @("scripts/check.ps1") `
+                -ForbiddenPaths @("src/**")
+            Write-FixtureJson -Path $protectedSpecPath -Value $spec
+            [IO.File]::WriteAllText((Join-Path $protectedRoot "scripts\check.ps1"), "Write-Host 'changed'`n", [Text.UTF8Encoding]::new($false))
+            Assert-PolicyRejected {
+                & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot
+            } "Protected path 'scripts/check\.ps1'.*acceptance-controls.*governance"
+        }
+
+        Invoke-PolicyCase "full lane cannot change an acceptance control" {
+            $spec = New-ChangeSpecFixture `
+                -Lane "full" `
+                -Profile "template" `
+                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                -ProtectedChange $false `
+                -TaskStartRevision $protectedBase `
+                -AllowedPaths @("scripts/check.ps1") `
+                -ForbiddenPaths @("src/**") `
+                -ProtectedFiles 1
+            Write-FixtureJson -Path $protectedSpecPath -Value $spec
+            Assert-PolicyRejected {
+                & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot
+            } "Protected path 'scripts/check\.ps1'.*acceptance-controls.*governance"
+        }
+
+        Invoke-PolicyCase "governance protected change remains review-required" {
+            $spec = New-ChangeSpecFixture `
+                -TaskStartRevision $protectedBase `
+                -AllowedPaths @("scripts/check.ps1") `
+                -ForbiddenPaths @("src/**") `
+                -ProtectedFiles 1
+            Write-FixtureJson -Path $protectedSpecPath -Value $spec
+            $result = & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot -PassThru
+            if ($result.Outcome -ne "review_required") {
+                throw "Expected review_required, got '$($result.Outcome)'."
+            }
+            if (@($result.Matches | Where-Object { $_.GroupId -eq "acceptance-controls" }).Count -ne 1) {
+                throw "Expected scripts/check.ps1 to be classified as acceptance-controls."
+            }
+        }
+
+        Invoke-PolicyCase "hosted workflow is classified as remote trust" {
+            [IO.File]::WriteAllText((Join-Path $protectedRoot ".github\workflows\ci.yml"), "name: changed fixture`n", [Text.UTF8Encoding]::new($false))
+            $spec = New-ChangeSpecFixture `
+                -TaskStartRevision $protectedBase `
+                -AllowedPaths @("scripts/check.ps1", ".github/workflows/**") `
+                -ForbiddenPaths @("src/**") `
+                -ProtectedFiles 2 `
+                -WorkflowFiles 1
+            Write-FixtureJson -Path $protectedSpecPath -Value $spec
+            $result = & $protectedChecker -ChangeSpecPath $protectedSpecPath -RepositoryRoot $protectedRoot -PassThru
+            $workflowMatches = @($result.Matches | Where-Object {
+                $_.Path -eq ".github/workflows/ci.yml" -and $_.GroupId -eq "remote-trust"
+            })
+            if ($workflowMatches.Count -ne 1 -or $result.Outcome -ne "review_required") {
+                throw "Expected one review-required remote-trust classification for the hosted workflow."
+            }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $protectedRoot) {
+            $resolvedProtectedRoot = (Resolve-Path -LiteralPath $protectedRoot).Path
+            if (-not $resolvedProtectedRoot.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to remove protected-path fixture outside the system temporary directory: $resolvedProtectedRoot"
+            }
+            Remove-Item -LiteralPath $resolvedProtectedRoot -Recurse -Force
         }
     }
 }
