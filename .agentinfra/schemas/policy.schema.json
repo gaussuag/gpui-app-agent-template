@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/gpui-app-agent-template/policy.schema.json",
+  "title": "Executable Constitution policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "repository_profile",
+    "lanes",
+    "checks",
+    "protected_paths",
+    "budget_indicators",
+    "bot",
+    "result_statuses",
+    "passing_statuses"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.2" },
+    "policy_id": { "type": "string", "minLength": 1 },
+    "repository_profile": { "enum": ["template", "product"] },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["focused", "full", "governance", "bot"],
+      "properties": {
+        "focused": { "$ref": "#/definitions/lane" },
+        "full": { "$ref": "#/definitions/lane" },
+        "governance": { "$ref": "#/definitions/lane" },
+        "bot": { "$ref": "#/definitions/lane" }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry", "profiles"],
+      "properties": {
+        "registry": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/id" }
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["focused", "template", "product", "governance", "bot"],
+          "properties": {
+            "focused": { "$ref": "#/definitions/profile" },
+            "template": { "$ref": "#/definitions/profile" },
+            "product": { "$ref": "#/definitions/profile" },
+            "governance": { "$ref": "#/definitions/profile" },
+            "bot": { "$ref": "#/definitions/profile" }
+          }
+        }
+      }
+    },
+    "protected_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/protected_group" }
+    },
+    "budget_indicators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "new_crate_manifests",
+        "new_manifests",
+        "dependency_manifest_files",
+        "workflow_files"
+      ],
+      "properties": {
+        "new_crate_manifests": { "$ref": "#/definitions/glob_array" },
+        "new_manifests": { "$ref": "#/definitions/glob_array" },
+        "dependency_manifest_files": { "$ref": "#/definitions/glob_array" },
+        "workflow_files": { "$ref": "#/definitions/glob_array" }
+      }
+    },
+    "bot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_paths", "forbidden_paths"],
+      "properties": {
+        "allowed_paths": { "$ref": "#/definitions/glob_array" },
+        "forbidden_paths": { "$ref": "#/definitions/glob_array" }
+      }
+    },
+    "result_statuses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "passed",
+          "failed",
+          "skipped",
+          "not_run",
+          "environment_failure",
+          "policy_rejected",
+          "review_required"
+        ]
+      }
+    },
+    "passing_statuses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["passed"] }
+    }
+  },
+  "definitions": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistence",
+        "may_change_protected_paths",
+        "requires_full_task_spec",
+        "default_outcome"
+      ],
+      "properties": {
+        "persistence": { "enum": ["transient", "committed"] },
+        "may_change_protected_paths": { "type": "boolean" },
+        "requires_full_task_spec": { "type": "boolean" },
+        "default_outcome": { "enum": ["eligible", "review_required"] }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_lanes", "repository_profiles", "required_checks"],
+      "properties": {
+        "allowed_lanes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["focused", "full", "governance", "bot"] }
+        },
+        "repository_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["template", "product"] }
+        },
+        "required_checks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/id" }
+        }
+      }
+    },
+    "glob_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "protected_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "globs", "allowed_lanes"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "description": { "type": "string", "minLength": 1 },
+        "globs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "allowed_lanes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["governance"] }
+        }
+      }
+    }
+  }
+}

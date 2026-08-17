@@ -82,3 +82,4 @@ finally {
 
 Write-Host "Commit and source-risk policy self-tests passed."
 & (Join-Path $PSScriptRoot "test-product-identity.ps1")
+& (Join-Path $PSScriptRoot "test-executable-constitution.ps1") -Suite all
