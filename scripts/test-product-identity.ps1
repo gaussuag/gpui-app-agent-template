@@ -39,6 +39,12 @@ if (-not $profileMatch.Success) {
     throw "Could not resolve the canonical product profile from scripts/check.ps1."
 }
 $profile = $profileMatch.Groups["profile"].Value
+$repositoryPolicy = Get-Content -LiteralPath (Join-Path $root ".agentinfra\policy.json") -Raw -Encoding utf8 |
+    ConvertFrom-Json -Depth 100
+$expectedRepositoryProfile = if ($profile -eq "Template") { "template" } else { "product" }
+if ($repositoryPolicy.repository_profile -ne $expectedRepositoryProfile) {
+    throw "Product profile '$profile' requires repository_profile '$expectedRepositoryProfile'."
+}
 & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $profile | Out-Null
 $wrongProfile = if ($profile -eq "Template") { "Release" } else { "Template" }
 Assert-Rejected -Case "$wrongProfile policy against a $profile repository" -Action {

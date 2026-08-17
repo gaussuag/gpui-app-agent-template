@@ -37,6 +37,11 @@ run source identity checks, and run the full repository gate by default. Use
 `-SkipFullCheck` only when an enclosing deterministic check runs
 `scripts/check.ps1` immediately afterward.
 
+First initialization also changes `.agentinfra/policy.json` from the template
+repository profile to the product profile in the same rollback-safe edit. The
+generated-project fixture is template-only and reports an explicit skip when
+invoked from an initialized product repository.
+
 ## Source of truth
 
 The `desktop` Cargo manifest owns product identity:

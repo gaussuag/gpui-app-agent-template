@@ -15,6 +15,10 @@ $commitMessageChecker = Join-Path $PSScriptRoot "check-commit-message.ps1"
 $passed = 0
 $failed = 0
 $contractTaskStartRevision = ""
+$repositoryGovernancePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Raw -Encoding utf8 |
+    ConvertFrom-Json -Depth 100
+$fullProfileName = [string]$repositoryGovernancePolicy.repository_profile
+$fullRequiredChecks = @($repositoryGovernancePolicy.checks.profiles.$fullProfileName.required_checks)
 
 function Invoke-PolicyCase {
     param(
@@ -454,8 +458,8 @@ if ($Suite -in @("all", "scope")) {
                 )
                 $budgetSpec = New-ChangeSpecFixture `
                     -Lane "full" `
-                    -Profile "template" `
-                    -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                    -Profile $fullProfileName `
+                    -RequiredChecks $fullRequiredChecks `
                     -ProtectedChange $false `
                     -ChangesDependencies $true `
                     -TaskStartRevision $scopeBase `
@@ -482,8 +486,8 @@ if ($Suite -in @("all", "scope")) {
             )
             $dependencySpec = New-ChangeSpecFixture `
                 -Lane "full" `
-                -Profile "template" `
-                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                -Profile $fullProfileName `
+                -RequiredChecks $fullRequiredChecks `
                 -ProtectedChange $false `
                 -ChangesDependencies $true `
                 -TaskStartRevision $scopeBase `
@@ -498,8 +502,8 @@ if ($Suite -in @("all", "scope")) {
         Invoke-PolicyCase "declared dependency manifest budget passes" {
             $dependencySpec = New-ChangeSpecFixture `
                 -Lane "full" `
-                -Profile "template" `
-                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                -Profile $fullProfileName `
+                -RequiredChecks $fullRequiredChecks `
                 -ProtectedChange $false `
                 -ChangesDependencies $true `
                 -TaskStartRevision $scopeBase `
@@ -524,8 +528,8 @@ if ($Suite -in @("all", "scope")) {
                 )
                 $manifestSpec = New-ChangeSpecFixture `
                     -Lane "full" `
-                    -Profile "template" `
-                    -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                    -Profile $fullProfileName `
+                    -RequiredChecks $fullRequiredChecks `
                     -ProtectedChange $false `
                     -ChangesDependencies $true `
                     -TaskStartRevision $scopeBase `
@@ -663,8 +667,8 @@ if ($Suite -in @("all", "protected")) {
         Invoke-PolicyCase "full lane cannot change an acceptance control" {
             $spec = New-ChangeSpecFixture `
                 -Lane "full" `
-                -Profile "template" `
-                -RequiredChecks @("change-spec", "scope", "protected-paths", "repository-full-gate", "generated-product") `
+                -Profile $fullProfileName `
+                -RequiredChecks $fullRequiredChecks `
                 -ProtectedChange $false `
                 -TaskStartRevision $protectedBase `
                 -AllowedPaths @("scripts/check.ps1") `
@@ -743,7 +747,7 @@ if ($Suite -in @("all", "adapters")) {
         $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("add", ".")
         $null = Invoke-FixtureGit -Root $adapterRoot -Arguments @("commit", "--quiet", "-m", "test: adapter baseline")
 
-        Invoke-PolicyCase "full ChangeSpec generator uses committed template location" {
+        Invoke-PolicyCase "full ChangeSpec generator uses committed repository profile" {
             $result = & $newChangeGenerator `
                 -ChangeId "EC-ADAPTER-FULL" `
                 -Title "Exercise the full adapter" `
@@ -756,8 +760,8 @@ if ($Suite -in @("all", "adapters")) {
                 -RepositoryRoot $adapterRoot `
                 -PassThru
             $expectedPath = [IO.Path]::GetFullPath((Join-Path $adapterRoot ".agentinfra\changes\EC-ADAPTER-FULL.json"))
-            if ($result.Path -ne $expectedPath -or $result.Spec.state -ne "draft" -or $result.Spec.verification.profile -ne "template") {
-                throw "Full generator did not produce the expected committed template draft."
+            if ($result.Path -ne $expectedPath -or $result.Spec.state -ne "draft" -or $result.Spec.verification.profile -ne $fullProfileName) {
+                throw "Full generator did not produce the expected committed repository-profile draft."
             }
             & $changeSpecChecker -ChangeSpecPath $result.Path -RepositoryRoot $adapterRoot -AllowDraft | Out-Null
         }
