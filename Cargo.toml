@@ -18,7 +18,7 @@ app-core = { path = "crates/app-core" }
 app-ui = { path = "crates/app-ui" }
 gpui = { version = "=0.2.2", default-features = false, features = ["windows-manifest"] }
 gpui-component = { version = "=0.5.1", default-features = false }
-toml = { version = "=0.8.23" }
+toml = { version = "=1.1.4" }
 winresource = { version = "=0.1.31" }
 
 [workspace.lints.rust]

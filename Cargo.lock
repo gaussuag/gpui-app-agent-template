@@ -1350,7 +1350,7 @@ name = "desktop"
 version = "0.1.0"
 dependencies = [
  "app-ui",
- "toml 0.8.23",
+ "toml 1.1.4+spec-1.1.0",
  "winresource",
 ]
 
