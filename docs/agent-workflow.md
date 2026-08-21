@@ -23,10 +23,13 @@ The lane persistence, validation, and result rules are authoritative in
 ## 1. Establish current facts
 
 1. Read the root and nearest scoped `AGENTS.md`.
-2. Record `git rev-parse HEAD` as the task-start commit. Inspect `git status`,
-   `git diff`, and `git diff --cached`; separate pre-existing worktree and index
-   changes from task changes. If the index already contains user changes, do
-   not use that shared index for a task commit.
+2. Before any edit, record `git rev-parse HEAD` as the independent task-start
+   commit and retain that exact value in task context through implementation,
+   handoff, and final checks. Never recover or replace it from a ChangeSpec.
+   Inspect `git status`, `git diff`, and `git diff --cached`; separate
+   pre-existing worktree and index changes from task changes. If the index
+   already contains user changes, do not use that shared index for a task
+   commit.
 3. Read the target manifest, crate root, implementation, adjacent tests, and CI
    entry used for that area.
 4. Read `rust-toolchain.toml`, root UI dependencies, and the relevant lockfile
@@ -66,11 +69,18 @@ applicable with current-source evidence.
 
 ## 3. Bound the change
 
-Create the lane's ChangeSpec with `scripts/new-change.ps1`, then complete its
-closed fields and set it to `ready`. Validate it with the policy, ChangeSpec,
-scope, and protected-path entry points listed in
+Create the lane's ChangeSpec with `scripts/new-change.ps1`, passing the
+independent task-start value captured in step 1. Then complete its closed fields
+and set it to `ready`. Validate it with that same task-start through the policy,
+ChangeSpec, scope, and protected-path entry points listed in
 [the executable change contract](change-contract.md). Re-run those checks when
 the planned surface changes; do not widen the contract silently.
+
+Full and Governance authoring supplies its uncommitted path only with
+`-AllowDraft`. Commit the ready Spec as the first task commit. Final checks
+resolve that one committed Spec from task-start through `HEAD`; a supplied path
+can only assert the resolved result. Focused and Bot checks continue to supply
+their runner-owned repository-external Spec path.
 
 For a focused change, record the compact lane fields in task context. For a full
 or governance change, use [the task specification](agent-task-template.md) to
@@ -121,8 +131,9 @@ contains only that slice's direct implementation, tests, and documentation.
 
 ## 5. Prove and commit the slice
 
-1. Run the ChangeSpec, scope, and protected-path checks, then the focused command
-   named by the closest scoped instructions. Use the
+1. Run the ChangeSpec, scope, and protected-path checks with the independently
+   retained task-start value, then the focused command named by the closest
+   scoped instructions. Use the
    applicable `scripts/test.ps1` layer when Rust behavior changes.
 2. Exercise success, recoverable failure, cancellation/stale completion, and
    close/quit cases that apply to the change.
@@ -150,7 +161,8 @@ local commit, and no task-owned implementation remains only in the working tree.
 
 ## 6. Verify the final commit state and hand off
 
-1. Inspect `git status`. Re-run the ChangeSpec, scope, and protected-path checks,
+1. Inspect `git status`. Re-run the ChangeSpec, scope, and protected-path checks
+   with the original task-start value and automatic committed-Spec resolution,
    then run `scripts/check.ps1` using the pinned toolchain
    against the final commit state. When preserved pre-existing changes would
    contaminate HEAD-only evidence, use a safe isolated detached worktree if the

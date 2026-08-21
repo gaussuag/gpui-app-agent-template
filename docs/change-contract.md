@@ -24,13 +24,17 @@ that a check ran or passed.
 Generate a draft with `scripts/new-change.ps1`. Full and Governance drafts use
 the committed directory automatically; Focused and Bot drafts use the system
 temporary directory. Explicit output paths cannot violate that persistence
-rule. The generator derives the verification profile and required checks from
-policy, fixes `task_start_revision` to current `HEAD`, refuses overwrite, and
-validates the result.
+rule. Before any edit, the task runner records the current commit and passes it
+to the generator as `TaskStartRevision`. The generator verifies that this full
+commit id exists and is an ancestor of `HEAD`, derives the verification profile
+and required checks from policy, refuses overwrite, and validates the result.
+It never substitutes the current `HEAD` for a missing task-start input.
 
 ```powershell
+$taskStart = (git rev-parse HEAD).Trim()
 .\scripts\new-change.ps1 `
   -ChangeId EC-EXAMPLE-001 `
+  -TaskStartRevision $taskStart `
   -Title "Bound the requested change" `
   -Lane full `
   -ChangeKind feature `
@@ -45,20 +49,43 @@ Edit the closed data fields, resolve blocking owner decisions, and change
 Governance ChangeSpec is review history and stays committed. Routine Focused
 and Bot specs never enter the repository.
 
+The task-start value kept by the runner is the effective task start. The
+ChangeSpec field is only a declared value that must match it exactly. Final
+Full/Governance validation discovers the one task ChangeSpec from Git instead
+of accepting a caller-selected path. The Spec must be added by the first task
+commit, remain tracked and present at `HEAD`, retain its original change ID and
+task start, and have no competing or uncommitted ChangeSpec state. Later commits
+may update that same file without changing its identity.
+
+Git and Spec state determine the lifecycle. Draft, untracked, staged-only, or
+locally modified committed-lane Specs are `authoring` and require
+`-AllowDraft`; they cannot produce a final outcome. A ready, clean Spec with
+valid committed provenance is `final`. A ready Focused/Bot Spec outside the
+repository is final only when its task start matches the runner input and the
+repository range contains no committed-lifecycle Spec candidate.
+
 ## Validate the declared surface
 
-Run these public entry points with the same ChangeSpec:
+Run these public entry points with the task-start value captured before edits.
+Full and Governance final checks resolve the committed Spec automatically:
 
 ```powershell
 .\scripts\check-policy.ps1
-.\scripts\check-change-spec.ps1 -ChangeSpecPath <path>
-.\scripts\check-scope.ps1 -ChangeSpecPath <path>
-.\scripts\check-protected-paths.ps1 -ChangeSpecPath <path>
+.\scripts\check-change-spec.ps1 -TaskStartRevision $taskStart
+.\scripts\check-scope.ps1 -TaskStartRevision $taskStart
+.\scripts\check-protected-paths.ps1 -TaskStartRevision $taskStart
 ```
 
-The scope check compares the fixed task-start commit through `HEAD`, then adds
-staged, unstaged, and untracked paths. It uses NUL-safe Git output, includes both
-rename and copy endpoints, and matches repository paths case-insensitively for
+Focused and Bot checks also pass their runner-owned external path with
+`-ChangeSpecPath`. For Full/Governance, that parameter is optional and only
+asserts equality with the automatically resolved path; it never selects the
+contract.
+
+The shared resolver validates that the effective task start exists and is an
+ancestor of the requested head. It inspects the final net diff, per-commit
+name-status history, staged, unstaged, and untracked state, including both
+rename and copy endpoints. Scope and protected-path checks then use only the
+resolver's effective task start. Paths remain NUL-safe and case-insensitive for
 Windows. Git copy detection remains a similarity heuristic, so both reported
 endpoints must be authorized.
 
@@ -76,11 +103,12 @@ activation is not part of Core.
 
 ## Hard rejection and review
 
-The validators hard-reject malformed or unknown data, unavailable task-start
-commits, draft execution, lane/profile mismatches, missing or extra required
-checks, invalid persistence locations, scope or budget violations, undeclared
-crates/dependency impact, Bot widening, and protected-path changes from an
-unauthorized lane.
+The validators hard-reject malformed or unknown data, missing or unavailable
+independent task starts, non-ancestor heads, declared/effective start mismatch,
+ambiguous or wrong-range Specs, invalid committed provenance, final authoring
+state, lane/profile mismatches, missing or extra required checks, invalid
+persistence locations, scope or budget violations, undeclared crates/dependency
+impact, Bot widening, and protected-path changes from an unauthorized lane.
 
 Governance is different from rejection: an authorized protected change can be
 classified, tested, and committed locally, but its result remains

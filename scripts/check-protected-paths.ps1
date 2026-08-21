@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$ChangeSpecPath,
+    [Parameter(Mandatory = $true)][string]$TaskStartRevision,
+    [string]$HeadRevision = "HEAD",
+    [string]$ChangeSpecPath = "",
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [string]$PolicyPath = "",
     [switch]$AllowDraft,
@@ -11,19 +13,31 @@ $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "lib\ExecutableConstitution.psm1") -Force
 
 $root = [IO.Path]::GetFullPath($RepositoryRoot)
+if ([string]::IsNullOrWhiteSpace($PolicyPath)) {
+    $PolicyPath = Join-Path $root ".agentinfra\policy.json"
+}
+elseif (-not [IO.Path]::IsPathRooted($PolicyPath)) {
+    $PolicyPath = Join-Path $root $PolicyPath
+}
+& (Join-Path $PSScriptRoot "check-policy.ps1") `
+    -RepositoryRoot $root `
+    -PolicyPath $PolicyPath | Out-Null
+
 $contractArguments = @{
-    ChangeSpecPath = $ChangeSpecPath
     RepositoryRoot = $root
+    TaskStartRevision = $TaskStartRevision
+    HeadRevision = $HeadRevision
+    PolicyPath = $PolicyPath
     AllowDraft = $AllowDraft
-    PassThru = $true
 }
-if (-not [string]::IsNullOrWhiteSpace($PolicyPath)) {
-    $contractArguments.PolicyPath = $PolicyPath
+if (-not [string]::IsNullOrWhiteSpace($ChangeSpecPath)) {
+    $contractArguments.ChangeSpecPath = $ChangeSpecPath
 }
-$contract = & (Join-Path $PSScriptRoot "check-change-spec.ps1") @contractArguments
+$contract = Resolve-ECChangeContract @contractArguments
 $changes = @(Get-ECChangedPaths `
     -RepositoryRoot $root `
-    -TaskStartRevision $contract.Spec.task_start_revision)
+    -TaskStartRevision $contract.EffectiveTaskStartRevision `
+    -HeadRevision $contract.HeadRevision)
 
 $matches = [Collections.Generic.List[object]]::new()
 foreach ($change in $changes) {
@@ -52,7 +66,7 @@ if ($matches.Count -gt 0 -and -not $contract.Spec.protected_change) {
     throw "ChangeSpec '$($contract.Spec.change_id)' changes protected paths but protected_change is false."
 }
 
-Write-Host "Protected path classification passed: $($contract.Spec.change_id) matches=$($matches.Count) outcome=$($contract.Outcome)"
+Write-Host "Protected path classification passed: $($contract.Spec.change_id) matches=$($matches.Count) lifecycle=$($contract.Lifecycle) outcome=$($contract.Outcome)"
 if ($PassThru) {
     return [pscustomobject]@{
         Spec = $contract.Spec
@@ -61,5 +75,8 @@ if ($PassThru) {
         Changes = $changes
         Matches = @($matches)
         ChangeSpecPath = $contract.ChangeSpecPath
+        EffectiveTaskStartRevision = $contract.EffectiveTaskStartRevision
+        HeadRevision = $contract.HeadRevision
+        Lifecycle = $contract.Lifecycle
     }
 }

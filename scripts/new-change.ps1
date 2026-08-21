@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ChangeId,
+    [Parameter(Mandatory = $true)][string]$TaskStartRevision,
     [Parameter(Mandatory = $true)][string]$Title,
     [Parameter(Mandatory = $true)][ValidateSet("focused", "full", "governance", "bot")][string]$Lane,
     [Parameter(Mandatory = $true)][ValidateSet("feature", "fix", "dependency", "documentation", "governance")][string]$ChangeKind,
@@ -65,11 +66,26 @@ if ($null -eq $profile) {
     throw "Policy does not define verification profile '$profileName'."
 }
 
-$taskStartRevision = @(& git -C $root rev-parse HEAD 2>$null)
-if ($LASTEXITCODE -ne 0 -or $taskStartRevision.Count -ne 1) {
-    throw "Unable to resolve the task-start revision from repository HEAD."
+$taskStartRevision = $TaskStartRevision.Trim()
+if ($taskStartRevision -notmatch '^[0-9a-fA-F]{40,64}$') {
+    throw "TaskStartRevision must be a full commit id: $TaskStartRevision"
 }
-$taskStartRevision = $taskStartRevision[0].Trim()
+& git -C $root cat-file -e "$taskStartRevision^{commit}" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw "TaskStartRevision is not an available commit: $taskStartRevision"
+}
+$headRevision = @(& git -C $root rev-parse --verify "HEAD^{commit}" 2>$null)
+if ($LASTEXITCODE -ne 0 -or $headRevision.Count -ne 1) {
+    throw "Unable to resolve repository HEAD while validating TaskStartRevision."
+}
+$headRevision = $headRevision[0].Trim()
+& git -C $root merge-base --is-ancestor $taskStartRevision $headRevision 2>$null
+if ($LASTEXITCODE -eq 1) {
+    throw "TaskStartRevision '$taskStartRevision' is not an ancestor of HEAD '$headRevision'."
+}
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to validate TaskStartRevision '$taskStartRevision' against HEAD '$headRevision'."
+}
 
 $persistence = [string]$policy.lanes.$Lane.persistence
 $committedDirectory = [IO.Path]::GetFullPath((Join-Path $root ".agentinfra\changes"))
@@ -154,6 +170,7 @@ try {
     $json = $spec | ConvertTo-Json -Depth 100
     [IO.File]::WriteAllText($OutputPath, $json + "`n", [Text.UTF8Encoding]::new($false))
     & (Join-Path $PSScriptRoot "check-change-spec.ps1") `
+        -TaskStartRevision $taskStartRevision `
         -ChangeSpecPath $OutputPath `
         -RepositoryRoot $root `
         -PolicyPath $policyPath `
@@ -172,6 +189,7 @@ if ($PassThru) {
     return [pscustomobject]@{
         Path = $OutputPath
         Persistence = $persistence
+        TaskStartRevision = $taskStartRevision
         Spec = $generated
     }
 }

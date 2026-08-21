@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$ChangeSpecPath,
+    [Parameter(Mandatory = $true)][string]$TaskStartRevision,
+    [string]$HeadRevision = "HEAD",
+    [string]$ChangeSpecPath = "",
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [string]$PolicyPath = "",
     [switch]$AllowDraft,
@@ -31,19 +33,31 @@ function Test-ChangeAddsPath {
 }
 
 $root = [IO.Path]::GetFullPath($RepositoryRoot)
+if ([string]::IsNullOrWhiteSpace($PolicyPath)) {
+    $PolicyPath = Join-Path $root ".agentinfra\policy.json"
+}
+elseif (-not [IO.Path]::IsPathRooted($PolicyPath)) {
+    $PolicyPath = Join-Path $root $PolicyPath
+}
+& (Join-Path $PSScriptRoot "check-policy.ps1") `
+    -RepositoryRoot $root `
+    -PolicyPath $PolicyPath | Out-Null
+
 $contractArguments = @{
-    ChangeSpecPath = $ChangeSpecPath
     RepositoryRoot = $root
+    TaskStartRevision = $TaskStartRevision
+    HeadRevision = $HeadRevision
+    PolicyPath = $PolicyPath
     AllowDraft = $AllowDraft
-    PassThru = $true
 }
-if (-not [string]::IsNullOrWhiteSpace($PolicyPath)) {
-    $contractArguments.PolicyPath = $PolicyPath
+if (-not [string]::IsNullOrWhiteSpace($ChangeSpecPath)) {
+    $contractArguments.ChangeSpecPath = $ChangeSpecPath
 }
-$contract = & (Join-Path $PSScriptRoot "check-change-spec.ps1") @contractArguments
+$contract = Resolve-ECChangeContract @contractArguments
 $changes = @(Get-ECChangedPaths `
     -RepositoryRoot $root `
-    -TaskStartRevision $contract.Spec.task_start_revision)
+    -TaskStartRevision $contract.EffectiveTaskStartRevision `
+    -HeadRevision $contract.HeadRevision)
 
 $specPath = [IO.Path]::GetFullPath($contract.ChangeSpecPath)
 $specRelativePath = $null
@@ -124,7 +138,7 @@ foreach ($budget in $contract.Spec.budgets.PSObject.Properties) {
     }
 }
 
-Write-Host "Change scope passed: $($contract.Spec.change_id) paths=$($changes.Count) outcome=$($contract.Outcome)"
+Write-Host "Change scope passed: $($contract.Spec.change_id) paths=$($changes.Count) lifecycle=$($contract.Lifecycle) outcome=$($contract.Outcome)"
 if ($PassThru) {
     return [pscustomobject]@{
         Spec = $contract.Spec
@@ -133,5 +147,8 @@ if ($PassThru) {
         Changes = $changes
         ActualBudgets = [pscustomobject]$actualBudgets
         ChangeSpecPath = $contract.ChangeSpecPath
+        EffectiveTaskStartRevision = $contract.EffectiveTaskStartRevision
+        HeadRevision = $contract.HeadRevision
+        Lifecycle = $contract.Lifecycle
     }
 }
