@@ -22,3 +22,4 @@ Current decisions:
 - [ADR 0002: Application-owned last-window exit](0002-last-window-exit.md)
 - [ADR 0003: Cargo-owned product identity and Windows resource ownership](0003-product-identity.md)
 - [ADR 0004: Narrow executable change contracts](0004-executable-constitution-core.md)
+- [ADR 0005: Authoritative change contract resolution](0005-authoritative-change-contract-resolution.md)
