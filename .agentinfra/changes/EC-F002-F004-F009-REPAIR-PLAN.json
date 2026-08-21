@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.2",
+  "change_id": "EC-F002-F004-F009-REPAIR-PLAN",
+  "title": "Plan repairs for ChangeSpec provenance cardinality and fixture isolation",
+  "state": "ready",
+  "lane": "governance",
+  "change_kind": "governance",
+  "task_start_revision": "c15fa9bc88a223a5db2e469ba4c298148b2360bb",
+  "intent": {
+    "outcome": "A repair agent can implement F-002, F-004, and F-009 from one repository-backed technical plan with explicit acceptance tests.",
+    "recovery": "Revert the documentation commit; no validator or product behavior changes in this planning task."
+  },
+  "scope": {
+    "allowed_paths": [
+      ".agentinfra/changes/EC-F002-F004-F009-REPAIR-PLAN.json",
+      "docs/executable-constitution-f002-f004-f009-repair-plan.md"
+    ],
+    "forbidden_paths": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "crates/**",
+      ".github/**",
+      "scripts/**",
+      ".agentinfra/policy.json",
+      ".agentinfra/schemas/**"
+    ],
+    "expected_crates": []
+  },
+  "budgets": {
+    "new_crates": 0,
+    "dependency_manifest_files": 0,
+    "new_manifests": 0,
+    "new_unsafe_boundaries": 0,
+    "protected_files": 0,
+    "workflow_files": 0,
+    "public_architecture_layers": 0
+  },
+  "architecture": {
+    "changes_owner_or_dependency_direction": false,
+    "changes_async_or_resource_lifecycle": false,
+    "changes_platform_boundary": false,
+    "changes_dependencies": false,
+    "changes_protocol_or_persistence": false,
+    "changes_privacy_or_sensitive_data": false,
+    "changes_unsafe_boundary": false,
+    "changes_public_architecture_layers": false,
+    "adr_paths": []
+  },
+  "verification": {
+    "profile": "governance",
+    "required_checks": [
+      "change-spec",
+      "scope",
+      "protected-paths",
+      "policy",
+      "executable-constitution-self-tests",
+      "repository-full-gate"
+    ]
+  },
+  "protected_change": true,
+  "residual_risks": [
+    "This planning change documents repairs but does not itself close F-002, F-004, or F-009."
+  ],
+  "owner_decisions": [],
+  "exclusions": [
+    "No validator, schema, policy, product runtime, dependency, workflow, hosted trust, push, merge, or release change.",
+    "The execution agent must create a separate Governance ChangeSpec before implementing this plan."
+  ]
+}
