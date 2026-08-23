@@ -19,7 +19,6 @@ $newChangeGenerator = Join-Path $PSScriptRoot "new-change.ps1"
 $commitMessageChecker = Join-Path $PSScriptRoot "check-commit-message.ps1"
 $passed = 0
 $failed = 0
-$matchedCases = 0
 $createdFixtureDirectories = [System.Collections.Generic.List[string]]::new()
 $createdFixtureFiles = [System.Collections.Generic.List[string]]::new()
 $repositoryGovernancePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Raw -Encoding utf8 |
@@ -62,6 +61,35 @@ function Invoke-WithECFixture {
     }
 }
 
+function New-ECPolicyCase {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("contract", "scope", "protected", "adapters")]
+        [string]$Family,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    return [pscustomobject]@{
+        Family = $Family
+        Name = $Name
+        Action = $Action
+    }
+}
+
+function Assert-ECPolicyCaseRegistry {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Cases)
+
+    $duplicate = @($Cases |
+        Group-Object -Property { "$($_.Family)$([char]31)$($_.Name)" } -CaseSensitive |
+        Where-Object { $_.Count -gt 1 } |
+        Select-Object -First 1)
+    if ($duplicate.Count -gt 0) {
+        $case = $duplicate[0].Group[0]
+        throw "Case registry contains duplicate Family+Name '$($case.Family)/$($case.Name)'."
+    }
+}
+
 function Invoke-IsolatedPolicyCase {
     param(
         [Parameter(Mandatory = $true)]
@@ -71,11 +99,6 @@ function Invoke-IsolatedPolicyCase {
         [Parameter(Mandatory = $true)][scriptblock]$Action
     )
 
-    if (-not [string]::IsNullOrWhiteSpace($CaseName) -and $Name -cne $CaseName) {
-        return
-    }
-
-    $script:matchedCases++
     Write-Host "==> $Name"
     $fixture = $null
     $failure = ""
@@ -497,51 +520,12 @@ function Assert-RecordedFixtureCleanup {
     Write-Host "Fixture cleanup passed: directories=$($script:createdFixtureDirectories.Count) files=$($script:createdFixtureFiles.Count) remaining=0"
 }
 
-if ($Order -eq "reverse" -and [string]::IsNullOrWhiteSpace($CaseName)) {
-    $declarationPattern = '^\s*Invoke-IsolatedPolicyCase -Family "(?<family>contract|scope|protected|adapters)" -Name "(?<name>[^"]+)" -Action \{'
-    $declarations = @(Select-String -LiteralPath $PSCommandPath -Pattern $declarationPattern | ForEach-Object {
-        $match = [regex]::Match($_.Line, $declarationPattern)
-        [pscustomobject]@{
-            Family = $match.Groups["family"].Value
-            Name = $match.Groups["name"].Value
-        }
-    } | Where-Object { $Suite -eq "all" -or $_.Family -eq $Suite })
-    if ($declarations.Count -eq 0) {
-        throw "No declared cases were found for suite '$Suite'."
-    }
-
-    [array]::Reverse($declarations)
-    $reversePassed = 0
-    $reverseFailed = 0
-    $powerShellPath = (Get-Process -Id $PID).Path
-    foreach ($declaration in $declarations) {
-        & $powerShellPath `
-            -NoLogo `
-            -NoProfile `
-            -File $PSCommandPath `
-            -Suite $declaration.Family `
-            -CaseName $declaration.Name `
-            -Order declared
-        if ($LASTEXITCODE -eq 0) {
-            $reversePassed++
-        }
-        else {
-            $reverseFailed++
-        }
-    }
-    Write-Host "Executable Constitution self-tests: passed=$reversePassed failed=$reverseFailed order=reverse"
-    if ($reverseFailed -gt 0) {
-        exit 1
-    }
-    exit 0
-}
-
-if ($Suite -in @("all", "contract")) {
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "repository governance policy is structurally valid" -Action { param($fixture)
+$caseRegistry = @(
+    New-ECPolicyCase -Family "contract" -Name "repository governance policy is structurally valid" -Action { param($fixture)
         & $policyChecker
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "public acceptance adapters require an independent task start" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "public acceptance adapters require an independent task start" -Action { param($fixture)
         foreach ($commandPath in @($changeSpecChecker, $scopeChecker, $protectedChecker)) {
             $parameter = (Get-Command $commandPath).Parameters["TaskStartRevision"]
             $mandatory = @($parameter.Attributes | Where-Object {
@@ -553,7 +537,17 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "external task start rejects retroactive ordinary paths" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "case registry rejects duplicate family and name" -Action { param($fixture)
+        $duplicates = @(
+            New-ECPolicyCase -Family "scope" -Name "duplicate case" -Action {}
+            New-ECPolicyCase -Family "scope" -Name "duplicate case" -Action {}
+        )
+        Assert-PolicyRejected {
+            Assert-ECPolicyCaseRegistry -Cases $duplicates
+        } "duplicate Family\+Name 'scope/duplicate case'"
+    }
+
+    New-ECPolicyCase -Family "contract" -Name "external task start rejects retroactive ordinary paths" -Action { param($fixture)
         try {
             [IO.File]::WriteAllText((Join-Path $fixture.Root "other\outside.txt"), "retroactive ordinary change`n", [Text.UTF8Encoding]::new($false))
             $null = Invoke-FixtureGit -Root $fixture.Root -Arguments @("add", "other/outside.txt")
@@ -583,7 +577,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "external task start rejects retroactive protected paths" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "external task start rejects retroactive protected paths" -Action { param($fixture)
         try {
             [IO.File]::WriteAllText((Join-Path $fixture.Root "scripts\check.ps1"), "Write-Host 'retroactive protected change'`n", [Text.UTF8Encoding]::new($false))
             $null = Invoke-FixtureGit -Root $fixture.Root -Arguments @("add", "scripts/check.ps1")
@@ -614,7 +608,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "final rejects an untracked committed ChangeSpec" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "final rejects an untracked committed ChangeSpec" -Action { param($fixture)
         try {
             Write-FixtureJson -Path $fixture.SpecPath -Value (New-ChangeSpecFixture `
                 -Lane "full" `
@@ -634,7 +628,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "final resolves the unique committed ChangeSpec from the original task start" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "final resolves the unique committed ChangeSpec from the original task start" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -657,7 +651,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "historical head revision cannot borrow the current checkout" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "historical head revision cannot borrow the current checkout" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture `
                 -State "draft" `
@@ -696,7 +690,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "first contract Add must immediately follow the task start" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "first contract Add must immediately follow the task start" -Action { param($fixture)
         try {
             [IO.File]::WriteAllText(
                 (Join-Path $fixture.Root "src\ordinary.txt"),
@@ -721,7 +715,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "later Spec edit cannot advance the declared task start" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "later Spec edit cannot advance the declared task start" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
             $null = Add-ECFixtureContractCommit -Fixture $fixture -Spec $spec
@@ -745,7 +739,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "unavailable independent task start fails closed" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "unavailable independent task start fails closed" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -761,7 +755,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "non-ancestor independent task start fails closed" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "non-ancestor independent task start fails closed" -Action { param($fixture)
         try {
             $tree = @(Invoke-FixtureGit -Root $fixture.Root -Arguments @("rev-parse", "HEAD^{tree}"))[-1].ToString().Trim()
             $unrelated = @(Invoke-FixtureGit -Root $fixture.Root -Arguments @("commit-tree", $tree, "-m", "test: unrelated task start"))[-1].ToString().Trim()
@@ -779,7 +773,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "effective task range includes committed staged unstaged and untracked paths" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "effective task range includes committed staged unstaged and untracked paths" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -825,7 +819,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "later updates to the same committed Spec preserve provenance" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "later updates to the same committed Spec preserve provenance" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
             $null = Add-ECFixtureContractCommit -Fixture $fixture -Spec $spec
@@ -846,7 +840,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "staged-only committed Spec is authoring but never final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "staged-only committed Spec is authoring but never final" -Action { param($fixture)
         try {
             Write-FixtureJson -Path $fixture.SpecPath -Value (New-ChangeSpecFixture `
                 -Lane "full" `
@@ -877,7 +871,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "dirty committed Spec is authoring but never final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "dirty committed Spec is authoring but never final" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
             $null = Add-ECFixtureContractCommit -Fixture $fixture -Spec $spec
@@ -903,7 +897,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "committed draft Spec is authoring but never final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "committed draft Spec is authoring but never final" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -930,7 +924,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "duplicate committed Specs are rejected before caller selection" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "duplicate committed Specs are rejected before caller selection" -Action { param($fixture)
         try {
             $duplicatePath = Join-Path $fixture.Root ".agentinfra\changes\EC-TEST-DUPLICATE.json"
             Write-FixtureJson -Path $fixture.SpecPath -Value (New-ChangeSpecFixture `
@@ -952,7 +946,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "committed and untracked Specs cannot coexist" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "committed and untracked Specs cannot coexist" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -972,7 +966,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "modifying a historical Spec is a wrong-range contract" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "modifying a historical Spec is a wrong-range contract" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
             $null = Add-ECFixtureContractCommit -Fixture $fixture -Spec $spec -Message "test: add historical contract"
@@ -993,7 +987,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "deleted committed Spec cannot become final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "deleted committed Spec cannot become final" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -1011,7 +1005,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "renamed committed Spec cannot become final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "renamed committed Spec cannot become final" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -1029,7 +1023,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "copied committed Spec cannot become final" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "copied committed Spec cannot become final" -Action { param($fixture)
         try {
             $null = Add-ECFixtureContractCommit `
                 -Fixture $fixture `
@@ -1050,7 +1044,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "committed Spec filename must match change id" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "committed Spec filename must match change id" -Action { param($fixture)
         try {
             $wrongPath = Join-Path $fixture.Root ".agentinfra\changes\EC-WRONG-NAME.json"
             $null = Add-ECFixtureContractCommit `
@@ -1068,7 +1062,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "caller cannot select a permissive historical Spec" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "caller cannot select a permissive historical Spec" -Action { param($fixture)
         try {
             $permissivePath = Join-Path $fixture.Root ".agentinfra\changes\EC-PERMISSIVE.json"
             $null = Add-ECFixtureContractCommit `
@@ -1106,7 +1100,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "transient Spec task start must match independent input" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "transient Spec task start must match independent input" -Action { param($fixture)
         $transientPath = "$($fixture.Root)-focused.json"
         try {
             [IO.File]::WriteAllText((Join-Path $fixture.Root "src\committed.txt"), "committed`n", [Text.UTF8Encoding]::new($false))
@@ -1136,7 +1130,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "focused and bot lanes accept ready external transient Specs" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "focused and bot lanes accept ready external transient Specs" -Action { param($fixture)
         $focusedPath = "$($fixture.Root)-focused.json"
         $botPath = "$($fixture.Root)-bot.json"
         try {
@@ -1186,7 +1180,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-    Invoke-IsolatedPolicyCase -Family "contract" -Name "transient lane rejects a committed-lifecycle Spec candidate" -Action { param($fixture)
+    New-ECPolicyCase -Family "contract" -Name "transient lane rejects a committed-lifecycle Spec candidate" -Action { param($fixture)
         $transientPath = "$($fixture.Root)-focused.json"
         try {
             $null = Add-ECFixtureContractCommit `
@@ -1215,7 +1209,7 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "governance policy cannot carry arbitrary commands" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "governance policy cannot carry arbitrary commands" -Action { param($fixture)
             $policy = Get-Content -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Raw |
                 ConvertFrom-Json -Depth 100
             $policy | Add-Member -NotePropertyName "commands" -NotePropertyValue @("untrusted")
@@ -1225,7 +1219,7 @@ if ($Suite -in @("all", "contract")) {
             } "schema|additional|commands"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "protected path group identifiers are unique" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "protected path group identifiers are unique" -Action { param($fixture)
             $policy = Get-Content -LiteralPath (Join-Path $repositoryRoot ".agentinfra\policy.json") -Raw |
                 ConvertFrom-Json -Depth 100
             $policy.protected_paths = @($policy.protected_paths) + @($policy.protected_paths[0])
@@ -1235,7 +1229,7 @@ if ($Suite -in @("all", "contract")) {
             } "duplicate protected path group"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "valid untracked governance ChangeSpec is authoring-only" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "valid untracked governance ChangeSpec is authoring-only" -Action { param($fixture)
             Write-FixtureJson -Path $specPath -Value (New-ChangeSpecFixture `
                 -TaskStartRevision $fixture.TaskStartRevision)
             $result = & $changeSpecChecker `
@@ -1249,7 +1243,7 @@ if ($Suite -in @("all", "contract")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "ChangeSpec cannot carry arbitrary commands" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "ChangeSpec cannot carry arbitrary commands" -Action { param($fixture)
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
             $spec.commands = @("Invoke-Expression 'untrusted'")
             Write-FixtureJson -Path $specPath -Value $spec
@@ -1262,7 +1256,7 @@ if ($Suite -in @("all", "contract")) {
             } "schema|additional|commands"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "focused ChangeSpec rejects dependency impact" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "focused ChangeSpec rejects dependency impact" -Action { param($fixture)
             if (Test-Path -LiteralPath $specPath) {
                 Remove-Item -LiteralPath $specPath -Force
             }
@@ -1282,7 +1276,7 @@ if ($Suite -in @("all", "contract")) {
             } "focused.*dependency|dependency.*focused"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "ChangeSpec required checks match its profile" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "ChangeSpec required checks match its profile" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -TaskStartRevision $fixture.TaskStartRevision `
                 -RequiredChecks @("change-spec")
@@ -1296,7 +1290,7 @@ if ($Suite -in @("all", "contract")) {
             } "required checks|profile"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "ChangeSpec paths reject escape and root catch-all forms" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "ChangeSpec paths reject escape and root catch-all forms" -Action { param($fixture)
             foreach ($invalidPath in @("../escape", "C:\absolute", "\\server\share", "**/*")) {
                 $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision
                 $spec.scope.allowed_paths = @($invalidPath)
@@ -1311,7 +1305,7 @@ if ($Suite -in @("all", "contract")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "transient lane cannot persist its ChangeSpec in the repository" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "transient lane cannot persist its ChangeSpec in the repository" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -TaskStartRevision $fixture.TaskStartRevision `
                 -Lane "focused" `
@@ -1328,7 +1322,7 @@ if ($Suite -in @("all", "contract")) {
             } "transient.*outside|outside.*transient"
         }
 
-        Invoke-IsolatedPolicyCase -Family "contract" -Name "committed lane requires the repository ChangeSpec directory" -Action { param($fixture)
+        New-ECPolicyCase -Family "contract" -Name "committed lane requires the repository ChangeSpec directory" -Action { param($fixture)
             if (Test-Path -LiteralPath $specPath) {
                 Remove-Item -LiteralPath $specPath -Force
             }
@@ -1341,10 +1335,8 @@ if ($Suite -in @("all", "contract")) {
                     -RepositoryRoot $fixtureRoot
             } "committed.*\.agentinfra/changes|\.agentinfra/changes.*committed"
         }
-}
 
-if ($Suite -in @("all", "scope")) {
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "allowed modified path passes scope" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "allowed modified path passes scope" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -Lane "focused" `
                 -Profile "focused" `
@@ -1359,25 +1351,25 @@ if ($Suite -in @("all", "scope")) {
             Assert-ChangedPaths -Result $result -Expected @("src/allowed.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "allowed added path passes scope" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "allowed added path passes scope" -Action { param($fixture)
             [IO.File]::WriteAllText((Join-Path $scopeRoot "src\added.txt"), "added`n", [Text.UTF8Encoding]::new($false))
             $result = & $scopeChecker -TaskStartRevision $scopeBase -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot -PassThru
             Assert-ChangedPaths -Result $result -Expected @("src/added.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "allowed deleted path passes scope" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "allowed deleted path passes scope" -Action { param($fixture)
             Remove-Item -LiteralPath (Join-Path $scopeRoot "src\delete.txt")
             $result = & $scopeChecker -TaskStartRevision $scopeBase -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot -PassThru
             Assert-ChangedPaths -Result $result -Expected @("src/delete.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "rename endpoints inside scope pass" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "rename endpoints inside scope pass" -Action { param($fixture)
             $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("mv", "src/rename.txt", "src/renamed.txt")
             $result = & $scopeChecker -TaskStartRevision $scopeBase -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot -PassThru
             Assert-ChangedPaths -Result $result -Expected @("src/rename.txt", "src/renamed.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "rename destination outside scope is rejected" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "rename destination outside scope is rejected" -Action { param($fixture)
             try {
                 $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("mv", "src/move-out.txt", "other/moved.txt")
                 Assert-PolicyRejected {
@@ -1391,14 +1383,14 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "copy endpoints inside scope are reported" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "copy endpoints inside scope are reported" -Action { param($fixture)
             Copy-Item -LiteralPath (Join-Path $scopeRoot "src\copy-source.txt") -Destination (Join-Path $scopeRoot "src\copied.txt")
             $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("add", "src/copied.txt")
             $result = & $scopeChecker -TaskStartRevision $scopeBase -ChangeSpecPath $scopeSpecPath -RepositoryRoot $scopeRoot -PassThru
             Assert-ChangedPaths -Result $result -Expected @("src/copy-source.txt", "src/copied.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "copy destination outside scope is rejected" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "copy destination outside scope is rejected" -Action { param($fixture)
             $outsideCopy = Join-Path $scopeRoot "other\copied.txt"
             try {
                 Copy-Item -LiteralPath (Join-Path $scopeRoot "src\copy-source.txt") -Destination $outsideCopy
@@ -1413,7 +1405,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "untracked path outside scope is rejected" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "untracked path outside scope is rejected" -Action { param($fixture)
             $outsideUntracked = Join-Path $scopeRoot "other\untracked.txt"
             try {
                 [IO.File]::WriteAllText($outsideUntracked, "untracked`n", [Text.UTF8Encoding]::new($false))
@@ -1428,7 +1420,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "staged and unstaged paths are both reported" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "staged and unstaged paths are both reported" -Action { param($fixture)
             [IO.File]::WriteAllText((Join-Path $scopeRoot "src\staged.txt"), "staged`n", [Text.UTF8Encoding]::new($false))
             $null = Invoke-FixtureGit -Root $scopeRoot -Arguments @("add", "src/staged.txt")
             [IO.File]::WriteAllText((Join-Path $scopeRoot "src\allowed.txt"), "unstaged again`n", [Text.UTF8Encoding]::new($false))
@@ -1441,7 +1433,7 @@ if ($Suite -in @("all", "scope")) {
             Assert-ChangedPaths -Result $result -Expected @("src/allowed.txt", "src/staged.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "scope matching is Windows-case-insensitive" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "scope matching is Windows-case-insensitive" -Action { param($fixture)
             $caseSpec = New-ChangeSpecFixture `
                 -Lane "focused" `
                 -Profile "focused" `
@@ -1456,7 +1448,7 @@ if ($Suite -in @("all", "scope")) {
             Assert-ChangedPaths -Result $result -Expected @("src/allowed.txt")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "changed crate must be declared in expected_crates" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "changed crate must be declared in expected_crates" -Action { param($fixture)
             $unexpectedCrate = Join-Path $scopeRoot "crates\unexpected"
             try {
                 New-Item -ItemType Directory -Path (Join-Path $unexpectedCrate "src") -Force | Out-Null
@@ -1481,7 +1473,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "new crate cannot exceed a zero expansion budget" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "new crate cannot exceed a zero expansion budget" -Action { param($fixture)
             $newCrate = Join-Path $scopeRoot "crates\new-crate"
             try {
                 New-Item -ItemType Directory -Path $newCrate -Force | Out-Null
@@ -1512,7 +1504,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "dependency manifest cannot exceed a zero file budget" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "dependency manifest cannot exceed a zero file budget" -Action { param($fixture)
             [IO.File]::WriteAllText(
                 (Join-Path $scopeRoot "Cargo.toml"),
                 "[workspace]`nmembers = []`nresolver = `"2`"`n",
@@ -1533,7 +1525,7 @@ if ($Suite -in @("all", "scope")) {
             } "dependency_manifest_files|budget"
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "declared dependency manifest budget passes" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "declared dependency manifest budget passes" -Action { param($fixture)
             [IO.File]::WriteAllText(
                 (Join-Path $scopeRoot "Cargo.toml"),
                 "[workspace]`nmembers = []`nresolver = `"2`"`n",
@@ -1560,7 +1552,7 @@ if ($Suite -in @("all", "scope")) {
             )
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "new manifest cannot exceed a zero expansion budget" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "new manifest cannot exceed a zero expansion budget" -Action { param($fixture)
             $newManifestDirectory = Join-Path $scopeRoot "tools\extra"
             try {
                 New-Item -ItemType Directory -Path $newManifestDirectory -Force | Out-Null
@@ -1591,7 +1583,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "workflow file cannot exceed a zero expansion budget" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "workflow file cannot exceed a zero expansion budget" -Action { param($fixture)
             $workflowDirectory = Join-Path $scopeRoot ".github\workflows"
             try {
                 New-Item -ItemType Directory -Path $workflowDirectory -Force | Out-Null
@@ -1614,7 +1606,7 @@ if ($Suite -in @("all", "scope")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "bot scope cannot widen beyond dependency policy" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "bot scope cannot widen beyond dependency policy" -Action { param($fixture)
             if (Test-Path -LiteralPath $scopeCommittedSpecPath) {
                 Remove-Item -LiteralPath $scopeCommittedSpecPath -Force
             }
@@ -1639,7 +1631,7 @@ if ($Suite -in @("all", "scope")) {
             } "Bot path 'src/|bot.*dependency policy|dependency policy.*src/"
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "bot scope permits only declared dependency files" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "bot scope permits only declared dependency files" -Action { param($fixture)
             $botBase = $scopeBase
             [IO.File]::WriteAllText(
                 (Join-Path $scopeRoot "Cargo.toml"),
@@ -1661,7 +1653,7 @@ if ($Suite -in @("all", "scope")) {
             Assert-ChangedPaths -Result $result -Expected @("Cargo.toml")
         }
 
-        Invoke-IsolatedPolicyCase -Family "scope" -Name "failed case cleanup preserves the next baseline" -Action { param($fixture)
+        New-ECPolicyCase -Family "scope" -Name "failed case cleanup preserves the next baseline" -Action { param($fixture)
             $observation = [pscustomobject]@{
                 FailedRoot = ""
                 NextRoot = ""
@@ -1703,10 +1695,8 @@ if ($Suite -in @("all", "scope")) {
                 throw "The next fixture was reused or was not removed after its assertion."
             }
         }
-}
 
-if ($Suite -in @("all", "protected")) {
-        Invoke-IsolatedPolicyCase -Family "protected" -Name "focused lane cannot change an acceptance control" -Action { param($fixture)
+        New-ECPolicyCase -Family "protected" -Name "focused lane cannot change an acceptance control" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -Lane "focused" `
                 -Profile "focused" `
@@ -1722,7 +1712,7 @@ if ($Suite -in @("all", "protected")) {
             } "Protected path 'scripts/check\.ps1'.*acceptance-controls.*governance"
         }
 
-        Invoke-IsolatedPolicyCase -Family "protected" -Name "full lane cannot change an acceptance control" -Action { param($fixture)
+        New-ECPolicyCase -Family "protected" -Name "full lane cannot change an acceptance control" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -ChangeId "EC-TEST-PROTECTED" `
                 -Lane "full" `
@@ -1740,7 +1730,7 @@ if ($Suite -in @("all", "protected")) {
             } "Protected path 'scripts/check\.ps1'.*acceptance-controls.*governance"
         }
 
-        Invoke-IsolatedPolicyCase -Family "protected" -Name "governance protected change remains review-required" -Action { param($fixture)
+        New-ECPolicyCase -Family "protected" -Name "governance protected change remains review-required" -Action { param($fixture)
             $spec = New-ChangeSpecFixture `
                 -ChangeId "EC-TEST-PROTECTED" `
                 -TaskStartRevision $protectedBase `
@@ -1764,7 +1754,7 @@ if ($Suite -in @("all", "protected")) {
             )
         }
 
-        Invoke-IsolatedPolicyCase -Family "protected" -Name "hosted workflow is classified as remote trust" -Action { param($fixture)
+        New-ECPolicyCase -Family "protected" -Name "hosted workflow is classified as remote trust" -Action { param($fixture)
             [IO.File]::WriteAllText((Join-Path $protectedRoot ".github\workflows\ci.yml"), "name: changed fixture`n", [Text.UTF8Encoding]::new($false))
             $spec = New-ChangeSpecFixture `
                 -ChangeId "EC-TEST-PROTECTED" `
@@ -1788,10 +1778,8 @@ if ($Suite -in @("all", "protected")) {
                 ".github/workflows/ci.yml"
             )
         }
-}
 
-if ($Suite -in @("all", "adapters")) {
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "full ChangeSpec generator uses committed repository profile" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "full ChangeSpec generator uses committed repository profile" -Action { param($fixture)
             $result = & $newChangeGenerator `
                 -ChangeId "EC-ADAPTER-FULL" `
                 -TaskStartRevision $adapterTaskStart `
@@ -1817,7 +1805,7 @@ if ($Suite -in @("all", "adapters")) {
             Remove-Item -LiteralPath $result.Path -Force
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "focused ChangeSpec generator uses transient location" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "focused ChangeSpec generator uses transient location" -Action { param($fixture)
             $result = $null
             try {
                 $result = & $newChangeGenerator `
@@ -1849,7 +1837,7 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "transient generator rejects a repository output path" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "transient generator rejects a repository output path" -Action { param($fixture)
             Assert-PolicyRejected {
                 & $newChangeGenerator `
                     -ChangeId "EC-ADAPTER-BAD-PATH" `
@@ -1866,7 +1854,7 @@ if ($Suite -in @("all", "adapters")) {
             } "transient.*outside|outside.*transient"
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "ChangeSpec generator requires an explicit task start" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "ChangeSpec generator requires an explicit task start" -Action { param($fixture)
             $parameter = (Get-Command $newChangeGenerator).Parameters["TaskStartRevision"]
             $mandatory = @($parameter.Attributes | Where-Object {
                 $_ -is [Management.Automation.ParameterAttribute] -and $_.Mandatory
@@ -1876,7 +1864,7 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "ChangeSpec generator rejects unavailable and non-ancestor starts" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "ChangeSpec generator rejects unavailable and non-ancestor starts" -Action { param($fixture)
             Assert-PolicyRejected {
                 & $newChangeGenerator `
                     -ChangeId "EC-ADAPTER-MISSING-START" `
@@ -1908,7 +1896,7 @@ if ($Suite -in @("all", "adapters")) {
             } "not an ancestor"
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "bot ChangeSpec generator derives dependency contract" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "bot ChangeSpec generator derives dependency contract" -Action { param($fixture)
             $result = $null
             try {
                 $result = & $newChangeGenerator `
@@ -1937,7 +1925,7 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "missing required verification resolves to not_run" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "missing required verification resolves to not_run" -Action { param($fixture)
             Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
             $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
                 ConvertFrom-Json -Depth 100
@@ -1950,7 +1938,7 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "only passed verification statuses can pass" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "only passed verification statuses can pass" -Action { param($fixture)
             Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
             $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
                 ConvertFrom-Json -Depth 100
@@ -1976,7 +1964,7 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "governance outcome cannot be promoted by green checks" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "governance outcome cannot be promoted by green checks" -Action { param($fixture)
             Import-Module (Join-Path $repositoryRoot "scripts\lib\ExecutableConstitution.psm1") -Force
             $policy = Get-Content -LiteralPath (Join-Path $adapterRoot ".agentinfra\policy.json") -Raw |
                 ConvertFrom-Json -Depth 100
@@ -1990,18 +1978,34 @@ if ($Suite -in @("all", "adapters")) {
             }
         }
 
-        Invoke-IsolatedPolicyCase -Family "adapters" -Name "dependency bot message requires explicit bot mode" -Action { param($fixture)
+        New-ECPolicyCase -Family "adapters" -Name "dependency bot message requires explicit bot mode" -Action { param($fixture)
             $botMessage = "Bump serde from 1.0.203 to 1.0.204"
             Assert-PolicyRejected {
                 & $commitMessageChecker -Message $botMessage
             } "subject|body|blank line"
             & $commitMessageChecker -Message $botMessage -Bot
         }
-}
+)
 
-if (-not [string]::IsNullOrWhiteSpace($CaseName) -and $matchedCases -eq 0) {
+Assert-ECPolicyCaseRegistry -Cases $caseRegistry
+$selectedCases = @($caseRegistry | Where-Object {
+    ($Suite -eq "all" -or $_.Family -ceq $Suite) -and
+    ([string]::IsNullOrWhiteSpace($CaseName) -or $_.Name -ceq $CaseName)
+})
+if ($selectedCases.Count -eq 0) {
     $failed++
     Write-Host "FAIL: no exact case named '$CaseName' exists in suite '$Suite'."
+}
+else {
+    if ($Order -eq "reverse") {
+        [array]::Reverse($selectedCases)
+    }
+    foreach ($case in $selectedCases) {
+        Invoke-IsolatedPolicyCase `
+            -Family ([string]$case.Family) `
+            -Name ([string]$case.Name) `
+            -Action ([scriptblock]$case.Action)
+    }
 }
 try {
     Assert-RecordedFixtureCleanup
