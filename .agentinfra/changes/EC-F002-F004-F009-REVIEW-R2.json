@@ -1,0 +1,79 @@
+{
+    "change_id": "EC-F002-F004-F009-REVIEW-R2",
+    "schema_version": "0.2",
+    "title": "Close review gaps in authoritative contract resolution and case registration",
+    "change_kind": "governance",
+    "lane": "governance",
+    "state": "ready",
+    "task_start_revision": "f59feab8ec2ce0f61fde9df8e5817c3bc7892221",
+    "intent": {
+        "recovery": "Fail closed without accepting a mixed Git snapshot; preserve per-case failure reporting and always clean only the GUID-owned temporary repository.",
+        "outcome": "Final local acceptance rejects historical HeadRevision values before consulting current checkout state, directly proves first-Add provenance, and executes one unique registry-defined case set in declared or reverse order."
+    },
+    "scope": {
+        "expected_crates": [],
+        "forbidden_paths": [
+            "Cargo.toml",
+            "Cargo.lock",
+            "crates/**",
+            ".github/**",
+            ".agentinfra/policy.json",
+            ".agentinfra/schemas/**",
+            "AGENTS.md",
+            "scripts/check.ps1"
+        ],
+        "allowed_paths": [
+            ".agentinfra/changes/EC-F002-F004-F009-REVIEW-R2.json",
+            "scripts/lib/ExecutableConstitution.psm1",
+            "scripts/test-executable-constitution.ps1",
+            "docs/change-contract.md",
+            "docs/decisions/0005-authoritative-change-contract-resolution.md"
+        ]
+    },
+    "architecture": {
+        "adr_paths": [
+            "docs/decisions/0005-authoritative-change-contract-resolution.md"
+        ],
+        "changes_public_architecture_layers": false,
+        "changes_unsafe_boundary": false,
+        "changes_privacy_or_sensitive_data": false,
+        "changes_protocol_or_persistence": true,
+        "changes_dependencies": false,
+        "changes_platform_boundary": false,
+        "changes_async_or_resource_lifecycle": false,
+        "changes_owner_or_dependency_direction": false
+    },
+    "budgets": {
+        "public_architecture_layers": 0,
+        "workflow_files": 0,
+        "protected_files": 3,
+        "new_unsafe_boundaries": 0,
+        "new_manifests": 0,
+        "dependency_manifest_files": 0,
+        "new_crates": 0
+    },
+    "verification": {
+        "required_checks": [
+            "change-spec",
+            "scope",
+            "protected-paths",
+            "policy",
+            "executable-constitution-self-tests",
+            "repository-full-gate"
+        ],
+        "profile": "governance"
+    },
+    "protected_change": true,
+    "owner_decisions": [
+        "Governance outcome remains review_required until a new independent owner review.",
+        "Historical revisions must be checked out before final local acceptance is evaluated for them."
+    ],
+    "residual_risks": [
+        "Candidate-local checks do not establish Hosted Trust and require a new independent review.",
+        "Existing commits 935cade and f59feab retain non-reproducible Evidence until history-rewrite authorization is separately granted."
+    ],
+    "exclusions": [
+        "No Cargo, crate, dependency, product, workflow, schema, policy, hosted trust, GitHub setting, push, merge, release, or history rewrite changes.",
+        "No repair of pre-existing commit-message Evidence without separate authorization to rewrite history."
+    ]
+}
