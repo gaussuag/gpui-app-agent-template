@@ -657,6 +657,70 @@ if ($Suite -in @("all", "contract")) {
         }
     }
 
+    Invoke-IsolatedPolicyCase -Family "contract" -Name "historical head revision cannot borrow the current checkout" -Action { param($fixture)
+        try {
+            $spec = New-ChangeSpecFixture `
+                -State "draft" `
+                -TaskStartRevision $fixture.TaskStartRevision
+            $draftRevision = Add-ECFixtureContractCommit `
+                -Fixture $fixture `
+                -Spec $spec `
+                -Message "test: add draft contract"
+            $spec.state = "ready"
+            $currentRevision = Add-ECFixtureContractCommit `
+                -Fixture $fixture `
+                -Spec $spec `
+                -Message "test: complete contract"
+
+            Assert-PolicyRejected {
+                & $changeSpecChecker `
+                    -TaskStartRevision $fixture.TaskStartRevision `
+                    -HeadRevision $draftRevision `
+                    -RepositoryRoot $fixture.Root
+            } "Head revision.*current checkout|current checkout.*Head revision"
+
+            $result = & $changeSpecChecker `
+                -TaskStartRevision $fixture.TaskStartRevision `
+                -HeadRevision $currentRevision `
+                -RepositoryRoot $fixture.Root `
+                -PassThru
+            if (
+                $result.Lifecycle -ne "final" -or
+                $result.HeadRevision -ne $currentRevision
+            ) {
+                throw "Explicit full current HEAD did not resolve the final contract."
+            }
+        }
+        finally {
+            Remove-ECContractFixture -Fixture $fixture
+        }
+    }
+
+    Invoke-IsolatedPolicyCase -Family "contract" -Name "first contract Add must immediately follow the task start" -Action { param($fixture)
+        try {
+            [IO.File]::WriteAllText(
+                (Join-Path $fixture.Root "src\ordinary.txt"),
+                "ordinary implementation before contract`n",
+                [Text.UTF8Encoding]::new($false)
+            )
+            $null = Invoke-FixtureGit -Root $fixture.Root -Arguments @("add", "src/ordinary.txt")
+            $null = Invoke-FixtureGit -Root $fixture.Root -Arguments @("commit", "--quiet", "-m", "test: add ordinary implementation")
+            $null = Add-ECFixtureContractCommit `
+                -Fixture $fixture `
+                -Spec (New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision) `
+                -Message "test: add late contract"
+
+            Assert-PolicyRejected {
+                & $changeSpecChecker `
+                    -TaskStartRevision $fixture.TaskStartRevision `
+                    -RepositoryRoot $fixture.Root
+            } "first Add commit.*effective task-start.*only parent"
+        }
+        finally {
+            Remove-ECContractFixture -Fixture $fixture
+        }
+    }
+
     Invoke-IsolatedPolicyCase -Family "contract" -Name "later Spec edit cannot advance the declared task start" -Action { param($fixture)
         try {
             $spec = New-ChangeSpecFixture -TaskStartRevision $fixture.TaskStartRevision

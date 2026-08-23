@@ -21,6 +21,12 @@ commit, remains tracked and present at the head, has stable identity and task
 start, and has no competing or uncommitted ChangeSpec state. A caller-provided
 path can assert the resolved path but cannot select a different contract.
 
+Local acceptance never combines a historical commit range with the current
+checkout's Spec, index, working tree, or untracked state. The resolver resolves
+the requested head and checkout `HEAD` to full commit IDs and continues only
+when they are identical. `HEAD` and its current full ID are equivalent inputs;
+validating a historical revision requires checking out that revision first.
+
 Focused and bot changes continue to use one runner-provided repository-external
 transient Spec. Their declared task start must match the independent input, and
 their repository range cannot contain a committed-lifecycle Spec candidate.
@@ -54,8 +60,9 @@ remote service.
   queries only; test repositories are temporary resources owned and removed by
   their individual test cases.
 - Error, recovery, and privacy requirements: missing, unavailable,
-  non-ancestor, mismatched, ambiguous, or dirty provenance fails closed with an
-  actionable reason; no credentials or user payloads are recorded.
+  non-ancestor, non-current-head, mismatched, ambiguous, or dirty provenance
+  fails closed with an actionable reason; no credentials or user payloads are
+  recorded.
 - Capacity/performance requirements: resolution scans finite repository Git
   output for the requested task range and never uses the network.
 - Compatibility and dependency constraints: existing JSON schema version 0.2

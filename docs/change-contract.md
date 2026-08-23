@@ -82,7 +82,14 @@ asserts equality with the automatically resolved path; it never selects the
 contract.
 
 The shared resolver validates that the effective task start exists and is an
-ancestor of the requested head. It inspects the final net diff, per-commit
+ancestor of the requested head. It resolves both the requested head and the
+current checkout `HEAD` to full commit IDs and rejects them unless they are the
+same commit, before consulting the live Spec, index, working tree, or untracked
+state. Both `HEAD` and the full ID of the current commit are valid inputs. To
+validate a historical revision, check out that revision first and run the local
+acceptance commands from that checkout.
+
+After that guard, the resolver inspects the final net diff, per-commit
 name-status history, staged, unstaged, and untracked state, including both
 rename and copy endpoints. Scope and protected-path checks then use only the
 resolver's effective task start. Paths remain NUL-safe and case-insensitive for

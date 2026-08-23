@@ -530,6 +530,13 @@ function Resolve-ECChangeContract {
         -RepositoryRoot $root `
         -Revision $HeadRevision `
         -Label 'Head revision'
+    $currentHead = Resolve-ECCommitRevision `
+        -RepositoryRoot $root `
+        -Revision 'HEAD' `
+        -Label 'Current checkout HEAD'
+    if (-not [string]::Equals($resolvedHead, $currentHead, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Head revision '$resolvedHead' must equal current checkout HEAD '$currentHead'; check out the requested revision before local acceptance."
+    }
     try {
         $mergeBase = (Invoke-ECGitRaw `
             -RepositoryRoot $root `
