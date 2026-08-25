@@ -1,0 +1,82 @@
+{
+  "schema_version": "0.2",
+  "change_id": "EC-ACCEPT-CORE-RESIDUALS",
+  "title": "Record accepted executable constitution residuals",
+  "state": "ready",
+  "lane": "governance",
+  "change_kind": "governance",
+  "task_start_revision": "857a8a9c8e4c6716d710cbcd0dc8dfb2dc2ca0be",
+  "intent": {
+    "outcome": "Repository decision records identify F-001, F-003, F-005, F-006, F-007, F-008, F-010, and F-011 as accepted current limitations with no planned repair, and direct future review to reconsider them only after ordinary Code Agent use produces current impact evidence or the Owner broadens scope.",
+    "recovery": "Revert this documentation decision if the Owner later chooses remediation or a broader executable-constitution acceptance baseline."
+  },
+  "scope": {
+    "allowed_paths": [
+      ".agentinfra/changes/EC-ACCEPT-CORE-RESIDUALS.json",
+      "docs/change-contract.md",
+      "docs/decisions/0006-executable-constitution-residual-disposition.md",
+      "docs/decisions/README.md"
+    ],
+    "forbidden_paths": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "crates/**",
+      "scripts/**",
+      ".github/**",
+      ".agentinfra/policy.json",
+      ".agentinfra/schemas/**",
+      "AGENTS.md",
+      "docs/agent-workflow.md",
+      "docs/agent-development-standard.md",
+      "docs/testing-standard.md"
+    ],
+    "expected_crates": []
+  },
+  "budgets": {
+    "new_crates": 0,
+    "dependency_manifest_files": 0,
+    "new_manifests": 0,
+    "new_unsafe_boundaries": 0,
+    "protected_files": 1,
+    "workflow_files": 0,
+    "public_architecture_layers": 0
+  },
+  "architecture": {
+    "changes_owner_or_dependency_direction": false,
+    "changes_async_or_resource_lifecycle": false,
+    "changes_platform_boundary": false,
+    "changes_dependencies": false,
+    "changes_protocol_or_persistence": false,
+    "changes_privacy_or_sensitive_data": false,
+    "changes_unsafe_boundary": false,
+    "changes_public_architecture_layers": false,
+    "adr_paths": [
+      "docs/decisions/0006-executable-constitution-residual-disposition.md"
+    ]
+  },
+  "verification": {
+    "profile": "governance",
+    "required_checks": [
+      "change-spec",
+      "scope",
+      "protected-paths",
+      "policy",
+      "executable-constitution-self-tests",
+      "repository-full-gate"
+    ]
+  },
+  "protected_change": true,
+  "residual_risks": [
+    "The accepted limitations remain observable if an ordinary Code Agent workflow encounters them.",
+    "The narrow Core remains candidate-local and does not claim the separately deferred hosted Trust stage."
+  ],
+  "owner_decisions": [
+    "F-001, F-003, F-005, F-006, F-007, F-008, F-010, and F-011 are accepted current limitations and are not repair work.",
+    "Reconsider an accepted limitation only after current evidence shows actual impact in an ordinary Code Agent workflow or the Owner authorizes broader governance scope.",
+    "This disposition creates no new gate, detector, fixture, metric, field, or reporting requirement."
+  ],
+  "exclusions": [
+    "No runtime, Cargo, crate, dependency, lockfile, script, policy, schema, test, workflow, hosted trust, repository setting, push, merge, release, or history rewrite change.",
+    "No new observation mechanism, acceptance standard, proactive adversarial defense, or speculative repair."
+  ]
+}
