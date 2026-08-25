@@ -23,3 +23,4 @@ Current decisions:
 - [ADR 0003: Cargo-owned product identity and Windows resource ownership](0003-product-identity.md)
 - [ADR 0004: Narrow executable change contracts](0004-executable-constitution-core.md)
 - [ADR 0005: Authoritative change contract resolution](0005-authoritative-change-contract-resolution.md)
+- [ADR 0006: Accept executable constitution residuals](0006-executable-constitution-residual-disposition.md)

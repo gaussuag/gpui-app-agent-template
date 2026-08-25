@@ -138,3 +138,8 @@ Core authorizes no push, merge, release, history rewrite, credential change, or
 remote repository setting change. Structured Evidence, CODEOWNERS, Branch
 Rulesets, hosted Required Checks, Eval Replay, and hosted Bot activation belong
 to a separately authorized Trust stage and separate GitHub-platform commits.
+
+Owner-accepted Core limitations and their evidence-based reconsideration point
+are recorded in [ADR 0006](decisions/0006-executable-constitution-residual-disposition.md).
+They are current boundaries rather than open repair or additional verification
+requirements; the decision adds no gate, fixture, metric, field, or report.
