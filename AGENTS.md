@@ -1,74 +1,37 @@
-# Agent operating contract
+# Working in this template
 
-## Start every task
+Implement the developer's spec or technical plan using the current repository.
+The spec owns intended behavior; source, manifests and `Cargo.lock` establish
+current implementation facts. Resolve a conflict instead of silently changing
+the requested outcome.
 
-1. Read the request, `git status`, this file, the root manifest, and the nearest
-   scoped `AGENTS.md` before editing. Current source and `Cargo.lock` outrank
-   plans, comments, old discussion, and remembered APIs.
-2. Classify work with [the Agent workflow](docs/agent-workflow.md) before editing
-   and create the lane record required by
-   [the executable change contract](docs/change-contract.md). Every change task
-   follows that workflow and
-   [the development standard](docs/agent-development-standard.md).
-3. Before changing behavior, read and apply
-   [the automated testing standard](docs/testing-standard.md). Pair the behavior
-   and its automated tests in the same change.
-4. Read [the architecture](docs/architecture.md) when changing commands,
-   effects, state ownership, task ownership, shutdown, or crate dependencies.
-5. Read [the dependency policy](docs/dependency-policy.md) before changing Rust,
-   GPUI Kit, backend packages, features, sources, patches, or the lockfile.
-6. Read [the Windows contract](docs/windows-platform.md) before changing
-   windows, native APIs, paths, packaging, installers, or platform code.
-7. Read [the product identity contract](docs/product-identity.md) before changing
-   product names, the desktop binary, icons, PE resources, or initialization.
-8. Use [the task specification](docs/agent-task-template.md) for full and
-   governance changes:
-   multi-module work or changes to async/resource lifecycle, platform behavior,
-   dependencies, protocol/persistence, privacy, or unsafe boundaries. A focused
-   change uses the compact record in the workflow. Unresolved acceptance items
-   remain incomplete.
-9. Read [the decision index](docs/decisions/README.md) before changing an owner,
-   dependency direction, persistence/protocol, shutdown, platform/unsafe
-   boundary, UI source, or source-risk exception.
+## Development loop
 
-Before implementation, record the current chain in task context: entry,
-authoritative owner, side effect, background/foreground boundary, stale guard,
-notification/render, failure/recovery, and close/quit behavior. A documentation-
-only change may shorten this record but still identifies its source of truth.
+1. Read the spec, `git status`, the affected implementation and adjacent tests.
+   Preserve existing user changes. Read the nearest scoped `AGENTS.md`.
+2. Apply [the workflow](docs/agent-workflow.md) and
+   [implementation rules](docs/agent-development-standard.md). Reuse the supplied
+   spec; keep only unresolved questions and a short implementation plan in task
+   context. Ask when a decision changes product behavior or authorized scope.
+3. Implement a small working path, compile early, and test the changed behavior
+   using [the testing guide](docs/testing-standard.md).
+4. Review the diff, run the applicable checks, and deliver local commits unless
+   the user requests uncommitted work. Provide a runnable acceptance path,
+   actual verification results and remaining limitations.
 
-## Repository invariants
+## Load when relevant
 
-- Dependency direction is `desktop -> app-ui -> app-core`; only `app-ui` depends
-  on GPUI Kit.
-- Every mutable state and resource has one authoritative owner. Read-only
-  snapshots may be copied; writes return to the owner with revision identity.
-- Render reads prepared state and builds elements. External I/O, sleeps,
-  blocking waits, long locks, and task creation stay outside render.
-- Background work returns immutable values. UI state changes only on the GPUI
-  foreground context after owner and stale-request checks.
-- Every Task, Subscription, channel endpoint, worker, process, watcher, socket,
-  device, temporary artifact, and native handle has a named lifecycle owner and
-  stop path.
-- User-triggered failures become typed outcomes, visible recovery state, and
-  redacted diagnostics.
-- GPUI Kit and its backend remain one reviewed bill of materials. A fork or git
-  source requires an ADR with upstream base, delta, owner, and removal plan.
-- Every behavior change carries automated tests at the lowest stable seam in the
-  same change. Applicable success, failure, cancel/stale, and owner-drop paths
-  are evidence, not deferred cleanup.
+- Ownership, module boundaries, or shutdown: [architecture](docs/architecture.md).
+- UI dependencies, features, Rust toolchain, or lockfile:
+  [dependency policy](docs/dependency-policy.md).
+- Native APIs, windows, platform behavior, or packaging:
+  [Windows guide](docs/windows-platform.md).
+- Product names, binary, icons, resources, or initialization:
+  [product identity](docs/product-identity.md).
+- A lasting cross-cutting technical choice: [decisions](docs/decisions/README.md).
 
-## Delivery
-
-Tasks that change repository files follow [the Agent workflow](docs/agent-workflow.md)
-through one or more planned, policy-compliant local commits unless the user
-explicitly asks to leave the changes uncommitted. Read-only, diagnostic, and
-review tasks do not create commits. This local default does not authorize push,
-PR, merge, release, or history rewrites.
-
-Keep the diff and commits within the requested behavior and follow
-[the Git commit policy](docs/git-commit-policy.md). The workflow runs
-`scripts/check.ps1` as the final repository quality gate; a passing gate is
-verification evidence, not the end of Git delivery or handoff. Report
-formatting, Clippy, each test layer, architecture/Agent checks, Windows smoke,
-packaging, and specialized manual checks separately; an unrun gate is not a
-passing gate.
+Ordinary implementation choices and fixes within the spec are autonomous.
+Changing acceptance criteria, deleting user data, pushing, publishing, and
+rewriting history require the corresponding user authorization. Report changes
+to tests or checkers that alter what is accepted; preserve the underlying
+requirement and prove the replacement.

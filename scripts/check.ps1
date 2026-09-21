@@ -30,12 +30,12 @@ try {
         "clippy", "--workspace", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"
     )
     & (Join-Path $PSScriptRoot "test.ps1") -Suite all
-    Write-Host "==> Agent repository contracts"
-    & (Join-Path $PSScriptRoot "check-agent-contract.ps1")
-    Write-Host "==> source risk policy"
-    & (Join-Path $PSScriptRoot "check-source-risks.ps1")
-    Write-Host "==> policy script self-tests"
-    & (Join-Path $PSScriptRoot "test-policy-scripts.ps1")
+    Write-Host "==> documentation links"
+    & (Join-Path $PSScriptRoot "check-docs.ps1")
+    Write-Host "==> verification script self-tests"
+    & (Join-Path $PSScriptRoot "test-docs.ps1")
+    & (Join-Path $PSScriptRoot "test-product-identity.ps1")
+    & (Join-Path $PSScriptRoot "test-ui-dependencies.ps1")
     Write-Host "==> architecture and dependency identity"
     & (Join-Path $PSScriptRoot "check-architecture.ps1")
     Invoke-CargoStep -Name "Windows MSVC build" -Arguments @(
@@ -52,4 +52,3 @@ finally {
 }
 
 Write-Host "Repository quality gate passed."
-Write-Host "For Agent change tasks, continue docs/agent-workflow.md until Git delivery, commit-range, worktree-status, and handoff are complete."

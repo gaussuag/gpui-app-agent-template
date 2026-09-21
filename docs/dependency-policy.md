@@ -70,8 +70,9 @@ component harnesses. Runtime application code does not enable test-support.
 A capability unavailable in the registry baseline requires an ADR before
 adopting a pinned git revision. Record upstream repository/base, exact revision,
 matching Kit/component revision, package identity strategy, fork delta and
-owner, Windows evidence, upgrade and removal plan. Update the executable
-policy deliberately in a Governance change; an ADR alone does not disable it.
+owner, Windows evidence, upgrade and removal plan. Update the dependency
+checker and its fixtures to enforce the new decision; an ADR alone does not
+change what the checker accepts.
 
 Moving branches and unpinned sources are not release inputs. Do not combine
 a pinned source with a transitive unqualified git source without deliberately

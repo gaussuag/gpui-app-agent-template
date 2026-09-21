@@ -3,14 +3,12 @@ param()
 
 $ErrorActionPreference = "Stop"
 $sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$sourcePolicyPath = Join-Path $sourceRoot ".agentinfra\policy.json"
-$sourcePolicy = Get-Content -LiteralPath $sourcePolicyPath -Raw -Encoding utf8 | ConvertFrom-Json -Depth 100
-if ($sourcePolicy.repository_profile -eq "product") {
+Import-Module (Join-Path $PSScriptRoot "product-identity.psm1") -Force
+$sourceIdentity = Get-ProductIdentity -Root $sourceRoot
+$templateIdentity = Get-TemplateIdentityDefaults
+if ($sourceIdentity.BinaryName -ne $templateIdentity.BinaryName) {
     Write-Host "SKIPPED: generated-product fixture is template-only for product repositories."
     return
-}
-if ($sourcePolicy.repository_profile -ne "template") {
-    throw "Unknown repository_profile '$($sourcePolicy.repository_profile)' for generated-product fixture."
 }
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
 $fixtureRoot = Join-Path $tempBase ("gpui fixture " + [Guid]::NewGuid().ToString("N").Substring(0, 8))
@@ -58,10 +56,8 @@ try {
         if ($initializedIdentity.ProductName -cne $unicodeDisplay) {
             throw "Initializer did not preserve the exact Unicode ProductName."
         }
-        $initializedPolicy = Get-Content -LiteralPath ".agentinfra\policy.json" -Raw -Encoding utf8 |
-            ConvertFrom-Json -Depth 100
-        if ($initializedPolicy.repository_profile -ne "product") {
-            throw "Initializer did not switch repository_profile from template to product."
+        if ($initializedIdentity.BinaryName -cne "lumen-notes") {
+            throw "Initializer did not set the generated product binary identity."
         }
 
         Write-Host "==> prove generated-product fixture skips product repositories"

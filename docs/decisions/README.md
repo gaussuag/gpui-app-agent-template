@@ -1,28 +1,24 @@
-# Architecture decision records
+# Architecture decisions
 
-Create the next numbered ADR from [the template](../templates/adr.md) before a
-change alters any of these contracts:
+Use an ADR for a lasting cross-cutting choice whose rationale is not evident
+from code: dependency/source strategy, module boundaries, persistent formats,
+platform support, or shutdown protocols involving external resources.
 
-- authoritative state or resource owner;
-- crate dependency direction or a new long-lived service boundary;
-- persisted data, protocol, wire format, or migration semantics;
-- cancellation, close, Quit, shutdown, drain, flush, or join semantics;
-- supported platform tier or a new Win32/COM/FFI/unsafe boundary;
-- GPUI Kit/backend source, git revision, fork, or package identity strategy;
-- an exception to a repository source-risk gate.
-
-Use `proposed`, `accepted`, `superseded`, or `rejected` status. An accepted ADR
-records the current decision, alternatives, consequences, direct validation,
-owner, and rollback/upgrade/removal path. Update or supersede a decision instead
-of silently changing the behavior it documents.
+Routine features, local ownership refactors and individual Task lifetimes do
+not each need an ADR. Reuse the developer's technical plan when it already
+records the decision; link it or preserve only the lasting rationale here.
+The [short template](../templates/adr.md) is optional.
 
 Current decisions:
 
-- [ADR 0001: Registry-first GPUI bill of materials](0001-ui-bom.md)
-- [ADR 0002: Application-owned last-window exit](0002-last-window-exit.md)
-- [ADR 0003: Cargo-owned product identity and Windows resource ownership](0003-product-identity.md)
-- [ADR 0004: Narrow executable change contracts](0004-executable-constitution-core.md)
-- [ADR 0005: Authoritative change contract resolution](0005-authoritative-change-contract-resolution.md)
-- [ADR 0006: Accept executable constitution residuals](0006-executable-constitution-residual-disposition.md)
+- [Application-owned last-window exit](0002-last-window-exit.md)
+- [Cargo-owned product identity](0003-product-identity.md)
+- [GPUI Kit facade](0007-gpui-kit.md)
+- [Spec-driven development and focused verification](0008-spec-driven-development.md)
 
-- [ADR 0007: GPUI Kit application facade](0007-gpui-kit.md)
+Historical decisions (superseded):
+
+- [Original UI bill of materials](0001-ui-bom.md)
+- [Executable change contracts](0004-executable-constitution-core.md)
+- [Contract provenance](0005-authoritative-change-contract-resolution.md)
+- [Accepted contract limitations](0006-executable-constitution-residual-disposition.md)

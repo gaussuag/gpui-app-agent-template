@@ -65,11 +65,12 @@ application.
 ```
 
 That command is the canonical gate for ordinary changes. It runs formatting,
-Clippy, explicit pure-core/GPUI/workspace test layers, Agent/document/source-risk
-contracts, dependency architecture, policy self-tests, and an explicit
+Clippy, one workspace test run including GPUI Kit test-support, documentation
+links, dependency architecture, identity/dependency validator fixtures, and an explicit
 `x86_64-pc-windows-msvc` build with `--locked`, followed by a native first-frame,
-Action, close, and process-exit smoke. Changes to template initialization or
-product identity additionally run `scripts/test-generated-project.ps1`; CI runs
+Action, close, and process-exit smoke. Changes to initialization, identity, the
+UI stack, or build/verification scripts additionally run
+`scripts/test-generated-project.ps1`; template CI runs
 both scripts. Specialized manual Windows, packaging, performance, or
 accessibility checks are reported separately.
 
@@ -79,7 +80,7 @@ Run a focused layer while developing:
 .\scripts\test.ps1 -Suite core
 .\scripts\test.ps1 -Suite gpui
 .\scripts\smoke.ps1
-.\scripts\test-generated-project.ps1 # template identity/initialization changes
+.\scripts\test-generated-project.ps1 # template generation/build integration
 ```
 
 ## Repository map
@@ -98,18 +99,20 @@ stack. Coding agents start with [AGENTS.md](AGENTS.md).
 
 ## Code Agent entry
 
-Agents begin at [the root operating contract](AGENTS.md), then read the nearest
-scoped `AGENTS.md`. Read-only, focused-change, and full-change lanes are defined
-by [the Agent workflow](docs/agent-workflow.md). Every change applies
-[the development standard](docs/agent-development-standard.md); full changes use
-[the task specification](docs/agent-task-template.md), and behavior changes use
-[the automated testing standard](docs/testing-standard.md). Changes to ownership,
-shutdown, persistence/protocols, platform tier, unsafe boundaries, or the UI
-dependency source use [an ADR](docs/decisions/README.md).
+Provide the feature spec or technical plan. Agents start at [AGENTS.md](AGENTS.md),
+map acceptance criteria to current owners, implement a small working path and
+verify it through [the workflow](docs/agent-workflow.md). The
+[implementation rules](docs/agent-development-standard.md) define Rust/GPUI
+boundaries; [the testing guide](docs/testing-standard.md) selects relevant checks.
 
-The rules describe supervised repository work; they do not authorize pushes,
-releases, user-data migration, or credential changes. Executed checks and unrun
-dynamic validation are reported separately.
+The supplied spec is reused without a duplicate machine contract. Routine
+technical decisions are autonomous; material behavior or scope changes return
+to the developer. Delivery includes local commits, actual verification results
+and a runnable acceptance path for quick human confirmation. Lasting technical
+choices use [ADRs](docs/decisions/README.md).
+
+Documentation-only changes use `scripts/check-docs.ps1` and `git diff --check`.
+Pushes, releases and destructive data changes require separate authorization.
 
 ## Starting a real product
 
@@ -123,8 +126,8 @@ dynamic validation are reported separately.
 6. Pair every behavior change with tests at the lowest stable seam; add
    failure/cancel/stale/owner-drop coverage and a lifecycle owner where
    applicable.
-7. Use the focused or full Agent task lane required by
-   [the workflow](docs/agent-workflow.md).
+7. Follow [the workflow](docs/agent-workflow.md) from the supplied spec through
+   implementation, verification and a short human acceptance path.
 
 ## Dependency upgrades
 

@@ -70,16 +70,69 @@ if (-not $profileMatch.Success) {
     throw "Could not resolve the canonical product profile from scripts/check.ps1."
 }
 $profile = $profileMatch.Groups["profile"].Value
-$repositoryPolicy = Get-Content -LiteralPath (Join-Path $root ".agentinfra\policy.json") -Raw -Encoding utf8 |
-    ConvertFrom-Json -Depth 100
-$expectedRepositoryProfile = if ($profile -eq "Template") { "template" } else { "product" }
-if ($repositoryPolicy.repository_profile -ne $expectedRepositoryProfile) {
-    throw "Product profile '$profile' requires repository_profile '$expectedRepositoryProfile'."
-}
 & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $profile | Out-Null
 $wrongProfile = if ($profile -eq "Template") { "Release" } else { "Template" }
 Assert-Rejected -Case "$wrongProfile policy against a $profile repository" -Action {
     & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $wrongProfile
 }
 
-Write-Host "Product identity positive and negative policy self-tests passed."
+
+# Exercise identity edits without a repository-governance file. Use real source
+# inputs but no Cargo build or mutation of the current checkout.
+$tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+$fixtureRoot = Join-Path $tempBase ("gpui-identity-" + [Guid]::NewGuid().ToString("N"))
+$fixtureFiles = @(
+    "crates\desktop\Cargo.toml", "README.md", "LICENSE", "scripts\check.ps1",
+    "crates\desktop\resources\windows\app.ico"
+)
+try {
+    foreach ($relativePath in $fixtureFiles) {
+        $destination = Join-Path $fixtureRoot $relativePath
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root $relativePath) -Destination $destination
+    }
+    $identityArguments = @{
+        Root = $fixtureRoot
+        ProductSlug = "fixture-product"
+        DisplayName = "Fixture Product"
+        Description = "Identity fixture."
+        Publisher = "Fixture Publisher"
+        LegalCopyright = "Copyright (c) 2026 Fixture Publisher"
+        Profile = "Development"
+    }
+    Set-ProductIdentityFiles @identityArguments
+    $manifest = Get-Content -Raw -LiteralPath (Join-Path $fixtureRoot "crates\desktop\Cargo.toml")
+    $fixtureCheck = Get-Content -Raw -LiteralPath (Join-Path $fixtureRoot "scripts\check.ps1")
+    if ($manifest -notmatch '(?m)^name = "fixture-product"$' -or
+        $manifest -notmatch '(?m)^ProductName = "Fixture Product"$' -or
+        $fixtureCheck -notmatch '(?m)^\$productProfile = "Development"\r?$') {
+        throw "Identity edit without governance files did not update product fields and check profile."
+    }
+
+    # An invalid target document fails after manifest edits have begun. Verify
+    # that all allowlisted files are restored by the existing rollback path.
+    Set-Content -LiteralPath (Join-Path $fixtureRoot "README.md") -Value "Missing product heading and markers."
+    $before = @{}
+    foreach ($relativePath in $fixtureFiles) {
+        $before[$relativePath] = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $fixtureRoot $relativePath)))
+    }
+    $identityArguments.DisplayName = "Changed Product"
+    Assert-Rejected -Case "missing README identity block" -Action {
+        Set-ProductIdentityFiles @identityArguments
+    }
+    foreach ($relativePath in $fixtureFiles) {
+        $after = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $fixtureRoot $relativePath)))
+        if ($after -cne $before[$relativePath]) { throw "Identity rollback changed $relativePath." }
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $fixtureRoot) {
+        $resolvedFixture = (Resolve-Path -LiteralPath $fixtureRoot).Path
+        if (-not $resolvedFixture.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to remove identity fixture outside the temporary directory."
+        }
+        Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
+    }
+}
+
+Write-Host "Product identity validation and rollback tests passed."

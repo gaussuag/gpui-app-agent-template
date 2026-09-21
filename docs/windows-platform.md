@@ -27,8 +27,8 @@ project.
   platform crate needs an explicit reviewed exception.
 - Keep blocking registry, filesystem, shell, device, and network operations off
   the GPUI foreground thread.
-- Treat HWND and COM apartment ownership as lifecycle resources and add them to
-  the lifecycle ledger.
+- Keep HWND and COM apartment ownership explicit, including thread affinity and
+  release paths; document cross-owner cleanup when it is not evident in code.
 - Surface recoverable native failures as user-visible state with an action the
   user can take.
 
@@ -53,7 +53,7 @@ exit; it does not inject platform window-creation failure.
 `scripts/smoke.ps1` runs two bounded checks against the built executable:
 
 1. The internal `--smoke-test` mode opens the production
-   GPUI/gpui-component window, completes a real frame, dispatches the production
+   GPUI Kit window, completes a real frame, dispatches the production
    `Increment` Action, verifies its state on the following frame, and removes
    the window. The shared last-window policy requests application quit. Success
    requires exit code zero and the `GPUI_SMOKE_OK` marker.

@@ -1,25 +1,13 @@
-# GitHub automation owner contract
+# GitHub automation
 
-This file extends [the repository contract](../AGENTS.md) for workflows,
-Dependabot, issue forms, and review templates.
+Pin third-party Actions to immutable SHAs and keep permissions read-only unless
+the task requires more. Untrusted pull requests receive no secrets or write
+access.
 
-## Boundaries
+Windows x64 MSVC CI calls repository scripts: `check.ps1` includes GPUI tests
+and native smoke; `test-generated-project.ps1` additionally verifies template
+output. Keep local and hosted checks aligned.
 
-- Keep permissions least-privilege and pin third-party Actions to immutable
-  commit SHAs with a readable release comment where available.
-- Windows x64 MSVC is the required CI tier. Workflows call repository scripts so
-  local and CI definitions of done remain identical.
-- Required CI executes the explicit `app-ui` GPUI headless suite and Windows
-  process smoke. It must not rely on a workspace default that can omit either.
-- Required CI also executes the copied generated-product fixture; the template
-  gate alone does not prove initialization or renamed artifact behavior.
-- Fetch only the Git history required by commit-policy checks. Do not add secrets
-  or write permissions to untrusted pull-request execution.
-- Templates collect evidence and link to canonical standards; they do not copy
-  normative rules that would drift.
-- A job marked optional or allowed to fail states the platform/product tier and
-  cannot be reported as a successful required gate.
-
-Workflow changes require syntax review, the relevant local script execution,
-and explicit acknowledgement that local execution does not prove the hosted
-GitHub job passed.
+PR templates collect outcome, verification and an acceptance path. They do not
+require duplicate specs or commit-message ceremonies. Report hosted execution
+separately from local validation.

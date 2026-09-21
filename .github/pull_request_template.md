@@ -1,69 +1,19 @@
-## Executable change contract
+## Outcome
 
-- Change ID / lane / ChangeSpec path:
-- Fixed task-start revision:
-- Verification profile:
-- Protected-path classification and outcome:
-- Scope and budget result:
-
-## Outcome and scope
-
-Describe user-observable success and recoverable failure behavior. Link the task
-specification for runtime or multi-module work and name explicit exclusions.
-
-## Current chain and decisions
-
-- Entry -> owner -> side effect -> background/foreground -> stale guard ->
-  notify/render:
-- Failure/recovery and close/quit paths:
-- ADR added/updated, or not required with reason:
-
-## Architecture and lifecycle
-
-- [ ] Dependency direction remains `desktop -> app-ui -> app-core`.
-- [ ] Changed Tasks/subscriptions/channels/workers/handles/artifacts have complete
-      lifecycle rows and named stop/late-cleanup paths.
-- [ ] Channel capacity, data bounds, error recovery, and privacy fields are
-      recorded where applicable.
-- [ ] UI-stack changes follow `docs/dependency-policy.md` and are isolated.
-
-## Acceptance scenarios
-
-| Scenario | Evidence or not-applicable reason |
-|---|---|
-| Primary success |  |
-| Recoverable failure |  |
-| Cancellation/stale completion |  |
-| Channel full/disconnect |  |
-| Owner/window close and App quit |  |
-| Platform fallback |  |
-
-## Automated test contract
-
-- [ ] Every behavior change has tests in this change, or a concrete blocker and
-      owned follow-up is recorded.
-- [ ] The lowest stable seam and expected red failure are recorded in the task.
-- [ ] GPUI behavior uses the explicit `app-ui` `test-support` suite; CI does not
-      silently exclude it.
+Link the developer's spec/issue and describe the implemented behavior.
+Mention intentional deviations or decisions still needed.
 
 ## Verification
 
-| Gate | Exact command/action | Result and commit |
-|---|---|---|
-| ChangeSpec / scope / protected paths |  |  |
-| Focused tests |  |  |
-| `scripts/check.ps1` |  |  |
-| Automated Windows smoke |  |  |
-| Generated product fixture, when template identity/initialization changes |  |  |
-| Specialized manual Windows checks |  |  |
-| Packaging/signing |  |  |
-| Performance/accessibility |  |  |
+List commands actually run and results. Identify relevant checks not run and
+why. Highlight any change to acceptance criteria, tests or checkers that changes
+what is accepted, and how the underlying requirement remains covered.
 
-Use the policy result statuses. List `failed`, `skipped`, `not_run`,
-`environment_failure`, `policy_rejected`, and `review_required` explicitly; only
-`passed` is passing. Do not infer a result from workflow or source presence.
+## Try it
 
-## Commits and handoff
+Give the launch command, necessary sample data, and a few actions with expected
+results. Include actual screenshots for visual changes when useful.
 
-- Policy-compliant atomic commits:
-- Remaining risks/follow-ups:
+## Remaining limitations
+
+Record unresolved risks or acceptance work, if any.

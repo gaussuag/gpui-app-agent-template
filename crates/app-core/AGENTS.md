@@ -1,36 +1,11 @@
-# app-core owner contract
+# Domain implementation
 
-This file extends [the repository contract](../../AGENTS.md) for `app-core`.
+Keep `app-core` independent of GPUI, native APIs, external I/O and executors.
+It owns domain state, typed commands/effects and request revisions. Effects
+describe work for adapters; they do not perform it.
 
-## Owner and interface
+Test transitions through stable interfaces such as `dispatch` and `snapshot`.
+A replaced or cancelled request must not commit a late result. Add real adapter
+seams only when required by a varying production dependency and its tests.
 
-`app-core` owns UI-independent product state, typed commands, state transitions,
-effects, immutable work requests/results, revisions, and render snapshots. Its
-stable caller interface is `AppState::dispatch` plus `AppState::snapshot`.
-
-## Boundaries
-
-- Keep this crate free of GPUI Kit and its backend, Window/Entity types, native
-  APIs, filesystem/network/database/device/process I/O, and executor selection.
-- Encode product phases and illegal-state prevention with enums and private
-  fields. Effects describe adapter work; they do not perform it.
-- Increment or invalidate request identity before work becomes stale. A result
-  commits only when its identity matches the authoritative pending state.
-- Add an adapter trait only when a real external dependency and a deterministic
-  second implementation both exist.
-
-## Validation
-
-Apply [the automated testing standard](../../docs/testing-standard.md). Test
-behavior through `dispatch` and `snapshot` in the same change. For changed state
-transitions, cover success plus every applicable failure, cancellation/reset,
-stale/late completion, saturation/overflow, and idempotence case.
-
-Focused command:
-
-```powershell
-.\scripts\test.ps1 -Suite core
-```
-
-Update `docs/architecture.md` when the Command/Effect/Snapshot protocol or state
-owner changes. Such an ownership change also requires an ADR.
+Focused check: `scripts/test.ps1 -Suite core`.

@@ -1,30 +1,21 @@
 # Contributing
 
-Use a focused branch and keep each change aligned with one stated behavior.
-Install the repository hooks once per clone:
+Start from the issue/spec or technical plan and follow
+[the development workflow](docs/agent-workflow.md). Keep the change focused,
+preserve unrelated work, and pair behavior with relevant tests.
 
-```powershell
-.\scripts\install-git-hooks.ps1
-```
+Use [implementation rules](docs/agent-development-standard.md) for Rust/GPUI
+boundaries and [the testing guide](docs/testing-standard.md) for check selection.
+Run `scripts/check.ps1` for code/build/automation changes. For docs-only edits,
+run `scripts/check-docs.ps1` and `git diff --check`. Template generation,
+identity, UI-stack and build/verification changes also exercise
+`scripts/test-generated-project.ps1`.
 
-Every commit follows [the Git commit policy](docs/git-commit-policy.md). Keep
-dependency upgrades, feature behavior, and opportunistic refactors in separate
-commits.
+Commit coherent changes with clear messages. No commit-message hook or body
+schema is required. If an older clone configured `core.hooksPath=.githooks`,
+the removed hook no longer runs; remove that local setting if no other hooks
+use it.
 
-Before opening a pull request:
-
-1. Explain the user-visible outcome and failure behavior.
-2. Select the focused or full lane in [the Agent workflow](docs/agent-workflow.md);
-   fill [the task specification](docs/agent-task-template.md) when the full lane
-   applies.
-3. Follow [the automated testing standard](docs/testing-standard.md): record the
-   test seam and expected red result, then update tests in the same behavior
-   change.
-4. Update the lifecycle inventory and an ADR when their documented triggers
-   apply.
-5. Run the focused `scripts/test.ps1` suite, then `scripts/check.ps1`, from
-   Windows PowerShell.
-6. Include exact verification and unrun dynamic checks in the pull request.
-
-Dependency upgrades follow `docs/dependency-policy.md` and must not be mixed
-with feature work.
+A pull request explains what changed, links the supplied spec, reports checks
+and remaining limitations, and gives a short runnable acceptance path. Record
+an [ADR](docs/decisions/README.md) only for a lasting cross-cutting choice.

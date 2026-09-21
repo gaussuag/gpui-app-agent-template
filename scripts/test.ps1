@@ -25,18 +25,18 @@ function Invoke-TestSuite {
 
 Push-Location $root
 try {
-    if ($Suite -in @("all", "core")) {
+    if ($Suite -eq "core") {
         Invoke-TestSuite -Name "pure core tests" -Arguments @(
             "test", "--package", "app-core", "--locked"
         )
     }
-    if ($Suite -in @("all", "gpui")) {
+    if ($Suite -eq "gpui") {
         Invoke-TestSuite -Name "GPUI headless tests" -Arguments @(
             "test", "--package", "app-ui", "--features", "test-support", "--locked"
         )
     }
     if ($Suite -in @("all", "workspace")) {
-        Invoke-TestSuite -Name "workspace tests" -Arguments @(
+        Invoke-TestSuite -Name "workspace tests (core, GPUI Kit, desktop)" -Arguments @(
             "test", "--workspace", "--all-features", "--locked"
         )
     }

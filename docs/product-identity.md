@@ -37,10 +37,11 @@ run source identity checks, and run the full repository gate by default. Use
 `-SkipFullCheck` only when an enclosing deterministic check runs
 `scripts/check.ps1` immediately afterward.
 
-First initialization also changes `.agentinfra/policy.json` from the template
-repository profile to the product profile in the same rollback-safe edit. The
-generated-project fixture is template-only and reports an explicit skip when
-invoked from an initialized product repository.
+The generated-project fixture is template-only. It reads the existing Cargo
+binary identity and reports an explicit skip after initialization changes the
+template binary name. No separate repository profile or governance file is
+needed. The canonical check's product profile changes in the same rollback-safe
+identity edit.
 
 ## Source of truth
 

@@ -1,204 +1,65 @@
-# Agent development standard
+# Implementation rules
 
-This is the normative engineering reference for Code Agent changes in this
-repository. `MUST` protects correctness, lifecycle, evidence, or a repository
-invariant. `SHOULD` is the default and needs a recorded reason to diverge.
-`AVOID` identifies a repeatedly risky shape; use its stated positive design or
-an ADR-backed exception.
+These rules translate a product spec into this Rust/GPUI template. The developer
+owns product behavior; the Agent chooses implementation details within that
+scope. Keep changes directed at the requested result.
 
-## Authority and change scope
+## Ownership and boundaries
 
-- **MUST:** Treat current source, manifests, lockfile, scripts, and scoped
-  instructions as facts. Treat plans, comments, README claims, and prior chat as
-  navigation until current code confirms them.
-- **MUST:** Trace the existing entry-to-render/error/shutdown chain before a
-  runtime edit. A callback, reducer, completion handler, and exit hook are one
-  behavior even when they live in different files.
-- **MUST:** Keep the diff to the requested outcome and preserve unrelated user
-  changes. Dependency upgrades and opportunistic refactors use separate tasks
-  and commits.
-- **MUST:** Before the first edit, record the task-start commit and pre-existing
-  worktree and index changes. Never include pre-existing staged content in a
-  task commit; if the shared index cannot contain only the current slice, use
-  explicitly authorized isolation or stop without unstaging, resetting, or
-  stashing user changes. Plan dependency-safe slices so each local commit is
-  coherent without a later slice and has one reason to revert.
-- **SHOULD:** Reuse an adjacent owner pattern and stable test seam. Introduce a
-  new seam only for real variation, not a predicted future implementation.
-- **SHOULD:** Keep public interfaces small and deep. Document state/resource
-  owner, caller context, invariants, errors, cancellation, and platform limits.
+- Preserve `desktop -> app-ui -> app-core`. Domain state and decisions belong
+  in `app-core`; GPUI entities, transient interaction state and effect execution
+  belong in `app-ui`; `desktop` owns process startup and product identity.
+- Give mutable state one write owner. Snapshots are read projections. Keep local
+  focus, hover and input state local rather than forcing it into the domain.
+- Use enums for mutually exclusive phases and typed requests/results for
+  effects. Avoid parallel caches or alternate handlers for the same state.
+- Reuse adjacent patterns. Introduce a trait or service boundary for a real
+  varying dependency, including a required deterministic test adapter, rather
+  than a hypothetical future system.
 
-## Dependency and state ownership
+## GPUI execution
 
-- **MUST:** Preserve `desktop -> app-ui -> app-core`. `app-core` remains free of
-  GPUI, windows, native APIs, and external I/O.
-- **MUST:** Give each mutable business state and resource one authoritative
-  owner. A snapshot is a read projection; it never becomes a second write path.
-- **MUST:** Encode mutually exclusive async phases such as idle, pending,
-  success, failed, cancelled, and offline with typed enums instead of related
-  booleans or string status codes.
-- **MUST:** Carry request revision/generation/key/scope through re-entrant async
-  work. A weak entity check proves liveness, not relevance.
-- **AVOID:** Parallel caches, event buses, or exit paths for the same state. The
-  positive design is one write owner with explicit projections and messages.
+- Use APIs from the locked dependency source and current working examples.
+  Upstream main and remembered GPUI APIs may target another version.
+- Render projects prepared state. External I/O, heavy work, blocking waits and
+  task creation belong outside render and outside the foreground action path.
+- Background work takes suitable owned inputs and returns results. Commit
+  UI-observable changes through a valid GPUI context after checking both owner
+  liveness and request revision/key. Liveness alone does not establish relevance.
+- Keep equivalent keyboard, menu and pointer intents on one Action/handler.
+  Retain Subscriptions in their owners and preserve focus routing/restoration.
+- Notify after state changes. Add coalescing or finer invalidation when actual
+  update frequency requires it.
 
-## GPUI context and render
+## Resources and failures
 
-- **MUST:** Modify UI-observable state only inside a valid GPUI App, Context,
-  AsyncApp, Entity, or Window update boundary.
-- **MUST:** Background work captures Send inputs and returns immutable values;
-  it does not mutate an Entity or Window directly.
-- **MUST:** Render and Element paint read prepared state and construct visible
-  elements. They do not start long-lived tasks, perform file/network/database/
-  device/process I/O, sleep, receive, wait on long locks, synchronously read GPU
-  results, or notify unconditionally.
-- **SHOULD:** Route keyboard, menu, and pointer forms of the same user intent to
-  one typed Action/handler. Use typed Event for child-to-owner communication and
-  retain every Subscription in its lifecycle owner.
-- **SHOULD:** Notify/emit only after semantic state change. Use child Entity,
-  snapshot equality, revision, damage, or typed-region invalidation when update
-  frequency or render breadth requires it.
-- **SHOULD:** A keyboard-interactive component owns its FocusHandle/key context
-  and restores a sensible focus target when a modal or palette closes.
+- Every task, subscription and external resource has an owner and stop path.
+  Keep simple ownership evident in fields and code. Document interacting
+  workers, external artifacts or shutdown ordering when code alone is unclear.
+- Dropping a UI task is sufficient only for work whose cancellation leaves no
+  required cleanup. Define how pending writes, workers and partial artifacts
+  finish, cancel or clean up, including late results after owner removal.
+- Keep synchronous locks out of await boundaries. Blocking I/O and worker joins
+  run off the UI thread. Detached work needs an application/process owner.
+- Choose channel capacity and full/disconnect behavior deliberately. Bound
+  potentially large queues, materialization and caches as well as visible UI.
+- User-triggered failures reach typed recovery state with a useful action.
+  Preserve error classification internally and redact user content and secrets
+  from logs and diagnostics. External failures are not unwrap/expect invariants.
+- When resources require flush, drain or confirmation, close and Quit converge
+  on one shutdown path. Consult [architecture](architecture.md) and the
+  [Windows guide](windows-platform.md) for platform ownership.
 
-## Async work and lifecycle
+## Keep requirements and evidence aligned
 
-- **MUST:** Move filesystem, network, database, device, child-process, and heavy
-  CPU work to the appropriate background executor/runtime/worker.
-- **MUST:** Before foreground commit, verify owner/window existence and request
-  identity. Discarded late results clean up any resource already created.
-- **MUST:** Do not hold a synchronous lock across await. Do not join a worker
-  that can block on read from the UI thread. Do not sleep or wait for task
-  completion in an Action path.
-- **MUST:** Every Task, Subscription, channel endpoint, worker/thread, process,
-  socket, watcher, device, native handle, temporary artifact, and persistent
-  write has a lifecycle ledger row with:
+Test observable behavior at the lowest stable seam using
+[the testing guide](testing-standard.md). Preserve existing regression coverage.
+Changing a test or checker to reflect an intentional contract change requires
+an explanation and coverage of the replacement; hiding failures by skipping,
+deleting assertions or relaxing requirements is not a fix.
 
-  | Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
-  |---|---|---|---|---|---|---|---|
-  | concrete resource | Entity/App/module | trigger | protocol/key | bound or lower contract | policy | UI + redacted diagnostic | explicit result |
-
-- **MUST:** Close button, close callback, menu/Action Quit, last-window exit, and
-  normal process shutdown converge on one idempotent shutdown protocol when
-  resources need confirmation, drain, flush, join, or cleanup.
-- **SHOULD:** Cancellation defines request time, checkpoints, deadline, partial
-  artifact cleanup, late-resource compensation, and completion confirmation.
-  Dropping a UI Task handle alone is sufficient only for short, idempotent work
-  with no external artifact.
-- **AVOID:** Local long-lived detached work. Work intentionally outliving a View
-  moves to an App/process owner with an error destination and exit policy.
-
-## Channels, refresh, and capacity
-
-- **MUST:** Classify each channel as replaceable state, reliable command, or
-  high-frequency stream. Record producer, consumer, capacity, ordering, full,
-  disconnect, retry/drop, shutdown, and sensitive-data behavior.
-- **SHOULD:** Use watch/capacity-one/coalescing for replaceable state, a bounded
-  request/result protocol for reliable commands, and frame/batch/revision gates
-  for high-frequency streams.
-- **AVOID:** Unbounded channels and ignored send results as defaults. A real-time
-  producer that cannot block requires an ADR, observable soft/hard shedding,
-  an explicit memory bound, and shutdown semantics.
-- **MUST:** For potentially large data, declare independent acquisition,
-  resident-memory, conversion/materialization, queue, layout/render, and cache
-  bounds with overflow behavior. A virtual list only bounds visible rendering.
-- **SHOULD:** Build only the visible range for large lists. Cache keys enumerate
-  every visual dependency and tests cover reuse, invalidation, and stale data.
-
-## Errors, recovery, and privacy
-
-- **MUST:** Every user-triggered fallible operation reaches typed UI state with
-  an applicable retry, cancel, retain, rollback, or dismiss action. Best-effort
-  maintenance may use rate-limited diagnostics only when the product declares
-  it disposable.
-- **MUST:** Preserve typed error classification, source, and non-sensitive
-  context through service layers. Map it to user language and recovery at the UI
-  boundary rather than controlling behavior with formatted error strings.
-- **MUST:** External input, I/O, channel closure, and platform failures do not
-  use unwrap, expect, or panic. A proven internal invariant records its proof in
-  code and a focused test.
-- **MUST:** Logs, panic context, telemetry, debug state, and exported diagnostics
-  exclude tokens, passwords, clipboard/document/database payloads, and other
-  user content by default. Secret-bearing types use redacted Debug behavior.
-- **SHOULD:** Optimistic UI state has an explicit rollback/retain policy and a
-  test for persistence failure.
-
-## Platform, unsafe, and UI dependencies
-
-- **MUST:** Isolate Win32, COM, FFI, target dependencies, and unsafe code in a
-  platform adapter. Upper layers receive capability or typed unsupported errors.
-- **MUST:** A reviewed unsafe exception documents input validity, aliasing and
-  lifetime, thread/apartment affinity, handle ownership, platform preconditions,
-  failure cleanup, and the safe interface it exposes.
-- **MUST:** Treat dependency capability, CI compilation, packaged artifact, and
-  supported product tier as separate claims.
-- **MUST:** Keep GPUI Kit and its backend on the reviewed registry BOM and
-  verify one package identity each. A git source is pinned by exact revision; a
-  fork records upstream baseline, delta, compatibility evidence, owner, upgrade,
-  and removal plan in an ADR.
-- **SHOULD:** Isolate UI-stack upgrades from product changes, regenerate and
-  inspect the lockfile, run the complete gate, and perform Windows runtime smoke.
-
-## Tests and evidence
-
-- **MUST:** Apply [the automated testing standard](testing-standard.md). Every
-  behavior change carries automated tests at the lowest stable seam in the same
-  change; the task records expected red evidence before implementation.
-- **MUST:** For the changed chain, evaluate success, recoverable failure,
-  cancellation, stale/late completion, channel full/disconnect, close/quit,
-  migration, and platform fallback. Test applicable rows and state why other
-  rows do not apply.
-- **MUST:** Run focused checks before the canonical full gate. Record formatter,
-  Clippy, each test layer, repository contracts, Windows build/smoke, manual
-  specialized checks, packaging, performance, and accessibility separately.
-- **MUST:** `Not run` is an evidence state. A workflow file, existing test,
-  benchmark source, another platform, or narrower check cannot be reported as a
-  current pass.
-
-## Documentation, decisions, and completion
-
-- **MUST:** Keep one canonical rule source. Root and scoped instructions are
-  routing and local facts, not copies of this standard.
-- **MUST:** Keep paths, commands, and local Markdown links current and checked.
-  Documentation explains reasons and non-obvious contracts instead of caching
-  discoverable source detail.
-- **MUST:** Write or update an [ADR](decisions/README.md) for ownership,
-  dependency direction, protocol/persistence, shutdown, platform tier, unsafe
-  boundary, GPUI source/fork, or high-risk-pattern exceptions.
-- **MUST:** Follow `docs/git-commit-policy.md`; each commit has one reason to
-  revert and records direct evidence.
-- **MUST:** A task that changes repository files ends in one or more planned,
-  policy-compliant local commits unless the user explicitly requests an
-  uncommitted handoff. Read-only, diagnostic, and review tasks do not commit.
-  Local delivery does not authorize push, PR, merge, release, or history rewrite.
-
-### Agent rule and skill hygiene
-
-- **MUST:** Add an always-loaded root or scoped Agent rule only when the trap is
-  non-obvious from current source, repeatedly encountered, and specific enough
-  to change a read, edit, or verification action. A one-directory rule belongs
-  in that directory's scoped `AGENTS.md`.
-- **SHOULD:** Express deterministic invariants with types, tests, lints, or the
-  existing repository checkers. Agent documents route to those controls and
-  explain non-obvious reasons; they do not cache discoverable file maps, counts,
-  line totals, temporary versions, or planned future architecture.
-- **SHOULD:** Add or materially expand Agent rules as a dedicated policy slice
-  after the pattern is evidenced. Do not turn a one-off observation from an
-  unrelated feature or fix into an always-loaded rule.
-- **MUST:** A repo-local Skill owns only a repeated, bounded, conditionally
-  invoked workflow that benefits from progressive references, scripts, assets,
-  or templates. Its trigger, side effects, limits, and repository-document
-  fallback are explicit. Always-on repository delivery rules remain in
-  `AGENTS.md` and this workflow.
-- **MUST:** A required external Agent tool or Skill has an ordinary repository
-  document/script fallback. Repository work never depends on one Agent host's
-  private installation.
-
-Before completion, account for every applicable item:
-
-- current checkout, Kit/backend identity, scoped rules, and user changes;
-- entry/owner/effect/background/guard/notify/render/error/shutdown chain;
-- lifecycle ledger, channel semantics, capacity, cleanup, and privacy;
-- paired success/failure/cancel/stale/close tests and focused/full checks;
-- docs/ADR/commit updates, the task commit range, final worktree ownership, and
-  every dynamic check that remains unrun.
+Update documentation when a public contract or non-obvious design reason
+changes. Use [ADRs](decisions/README.md) for durable cross-cutting choices, not
+routine local refactors. Add a persistent Agent rule only for a demonstrated,
+recurring trap that changes how work is done; prefer a type, test or existing
+check when it can express the requirement.

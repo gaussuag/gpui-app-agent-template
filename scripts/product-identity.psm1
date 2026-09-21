@@ -260,9 +260,8 @@ function Set-ProductIdentityFiles {
     $readmePath = Join-Path $Root "README.md"
     $licensePath = Join-Path $Root "LICENSE"
     $checkPath = Join-Path $Root "scripts\check.ps1"
-    $policyPath = Join-Path $Root ".agentinfra\policy.json"
     $destination = Join-Path $Root "crates\desktop\resources\windows\app.ico"
-    $textPaths = @($manifestPath, $readmePath, $licensePath, $checkPath, $policyPath)
+    $textPaths = @($manifestPath, $readmePath, $licensePath, $checkPath)
     $originalText = @{}
     foreach ($path in $textPaths) {
         $originalText[$path] = [IO.File]::ReadAllText($path)
@@ -274,11 +273,6 @@ function Set-ProductIdentityFiles {
             Set-RegexValue -Path $manifestPath -Pattern '(?ms)(?<prefix>\[\[bin\]\]\s*\r?\nname\s*=\s*)"(?:\\.|[^"])*"' -Value $ProductSlug -Field "desktop binary name"
             Set-RegexValue -Path $manifestPath -Pattern '(?m)^(?<prefix>OriginalFilename\s*=\s*)"(?:\\.|[^"])*"\s*$' -Value "$ProductSlug.exe" -Field "OriginalFilename"
             Set-RegexValue -Path $manifestPath -Pattern '(?m)^(?<prefix>InternalName\s*=\s*)"(?:\\.|[^"])*"\s*$' -Value $ProductSlug -Field "InternalName"
-            Set-LiteralBlock `
-                -Path $policyPath `
-                -Pattern '(?m)^\s*"repository_profile"\s*:\s*"template"\s*,\s*$' `
-                -Replacement '  "repository_profile": "product",' `
-                -Field "repository governance profile"
         }
         Set-RegexValue -Path $manifestPath -Pattern '(?m)^(?<prefix>description\s*=\s*)"(?:\\.|[^"])*"\s*$' -Value $Description -Field "package description"
         Set-RegexValue -Path $manifestPath -Pattern '(?m)^(?<prefix>ProductName\s*=\s*)"(?:\\.|[^"])*"\s*$' -Value $DisplayName -Field "ProductName"

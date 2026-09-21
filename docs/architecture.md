@@ -50,11 +50,10 @@ waits on channels, sleeps, or acquires long-lived locks.
 | Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
 | Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
 
-Every new task, subscription, worker, channel, watcher, or native handle adds a
-row with all fields. Persistent writes and temporary artifacts are resources too.
-If an owner, deadline/contract, error destination, or late-cleanup path cannot be
-named, lifecycle design is incomplete. Use
-[the full ledger template](templates/lifecycle-ledger.md) when resources interact.
+This table explains the sample's ownership. New resources need an owner and
+stop/cleanup path in code; they do not each need a row here. Document complex
+resource interactions and shutdown ordering near their implementation or in the
+developer's design. Update this overview when application-wide ownership changes.
 
 The sample has no fallible external I/O and therefore does not demonstrate a
 complete error or shutdown coordinator. Introduce those protocols with the first
