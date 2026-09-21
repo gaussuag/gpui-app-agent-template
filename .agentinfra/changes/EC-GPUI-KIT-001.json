@@ -31,6 +31,9 @@
       "docs/decisions/0001-ui-bom.md",
       "docs/decisions/0007-gpui-kit.md",
       "scripts/check-architecture.ps1",
+      "scripts/check-product.ps1",
+      "scripts/product-identity.psm1",
+      "scripts/test-product-identity.ps1",
       "scripts/test-policy-scripts.ps1",
       "scripts/test-ui-dependencies.ps1",
       "scripts/lib/UiDependencies.psm1"
@@ -47,7 +50,7 @@
     "dependency_manifest_files": 3,
     "new_manifests": 0,
     "new_unsafe_boundaries": 0,
-    "protected_files": 11,
+    "protected_files": 14,
     "workflow_files": 0,
     "public_architecture_layers": 0
   },

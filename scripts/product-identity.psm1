@@ -6,6 +6,23 @@ $script:TemplateDescription = "A Windows-first Rust and GPUI desktop application
 $script:TemplatePublisher = "Unconfigured Publisher"
 $script:TemplateIconSha256 = "B1269BC889FF840BF1664935BDB0C6F6A1BBF7564A7F87AE9B3E58E63C9E23CA"
 
+function Assert-WindowsManifest {
+    param([Parameter(Mandatory = $true)][xml]$Manifest)
+
+    $dpiAware = $Manifest.SelectSingleNode("//*[local-name()='dpiAware']")
+    if ($null -eq $dpiAware -or $dpiAware.InnerText.Trim() -notin @("true", "true/pm")) {
+        throw "Application manifest resource ID 1 must declare dpiAware=true or true/pm."
+    }
+    $dpiAwareness = $Manifest.SelectSingleNode("//*[local-name()='dpiAwareness']")
+    if ($null -eq $dpiAwareness -or $dpiAwareness.InnerText -ne "PerMonitorV2") {
+        throw "Application manifest resource ID 1 must declare dpiAwareness=PerMonitorV2."
+    }
+    $commonControls = $Manifest.SelectSingleNode("//*[local-name()='assemblyIdentity' and @name='Microsoft.Windows.Common-Controls']")
+    if ($null -eq $commonControls -or $commonControls.version -ne "6.0.0.0") {
+        throw "Application manifest resource ID 1 must declare Common Controls v6."
+    }
+}
+
 function Assert-SingleLineValue {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -298,6 +315,7 @@ function Get-TemplateIdentityDefaults {
 }
 
 Export-ModuleMember -Function @(
+    "Assert-WindowsManifest",
     "Assert-CleanWorktree",
     "Assert-ProductSlug",
     "Assert-SingleLineValue",

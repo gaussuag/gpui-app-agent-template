@@ -37,6 +37,13 @@ desktop still embeds only icon and VERSIONINFO. Check the Windows production
 feature graph and the built executable, rather than retaining the old direct
 GPUI dependency merely to enable a feature. This preserves ADR 0003's ownership.
 
+The new backend's legacy `dpiAware` declaration is `true/pm`, rather than the
+old `true`. Accept both documented DPI-aware forms while still requiring
+`dpiAwareness=PerMonitorV2` and Common Controls v6. The shared manifest validator
+has positive and negative XML fixtures and validates the extracted PE resource.
+Microsoft documents the two declarations in
+[default process DPI awareness](https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process).
+
 Use `gpui-kit/test-support` and `#[gpui_kit::test]` for deterministic UI tests.
 Import test types explicitly: a wildcard import can shadow Rust's built-in
 `#[test]`. Keep real component click, Action, completion, cancellation,

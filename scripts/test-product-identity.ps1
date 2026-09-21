@@ -33,6 +33,37 @@ Assert-Rejected -Case "multiline identity field" -Action {
     Assert-SingleLineValue -Name "ProductName" -Value "Invoice`nStudio"
 }
 
+$manifestXml = @'
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+  <dependency><dependentAssembly>
+    <assemblyIdentity name="Microsoft.Windows.Common-Controls" version="6.0.0.0" />
+  </dependentAssembly></dependency>
+</assembly>
+'@
+Assert-WindowsManifest -Manifest ([xml]$manifestXml)
+Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('true/pm', 'true'))
+Assert-Rejected -Case "DPI unaware manifest" -Action {
+    Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('true/pm', 'false'))
+}
+Assert-Rejected -Case "missing DPI declaration" -Action {
+    Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('dpiAware ', 'missing ').Replace('</dpiAware>', '</missing>'))
+}
+Assert-Rejected -Case "missing PerMonitorV2" -Action {
+    Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('PerMonitorV2', 'System'))
+}
+Assert-Rejected -Case "old Common Controls" -Action {
+    Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('6.0.0.0', '5.0.0.0'))
+}
+Assert-Rejected -Case "missing Common Controls" -Action {
+    Assert-WindowsManifest -Manifest ([xml]$manifestXml.Replace('Microsoft.Windows.Common-Controls', 'Other.Controls'))
+}
+
 $checkText = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "check.ps1"))
 $profileMatch = [regex]::Match($checkText, '(?m)^\$productProfile\s*=\s*"(?<profile>Template|Development|Release)"\s*$')
 if (-not $profileMatch.Success) {

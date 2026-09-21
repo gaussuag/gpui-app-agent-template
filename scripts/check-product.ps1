@@ -80,18 +80,7 @@ namespace TemplateProductResource {
             throw "mt.exe could not extract application manifest resource ID 1."
         }
         [xml]$manifest = [IO.File]::ReadAllText($manifestPath)
-        $dpiAware = $manifest.SelectSingleNode("//*[local-name()='dpiAware']")
-        if ($null -eq $dpiAware -or $dpiAware.InnerText -ne "true") {
-            throw "Application manifest resource ID 1 must declare dpiAware=true."
-        }
-        $dpiAwareness = $manifest.SelectSingleNode("//*[local-name()='dpiAwareness']")
-        if ($null -eq $dpiAwareness -or $dpiAwareness.InnerText -ne "PerMonitorV2") {
-            throw "Application manifest resource ID 1 must declare dpiAwareness=PerMonitorV2."
-        }
-        $commonControls = $manifest.SelectSingleNode("//*[local-name()='assemblyIdentity' and @name='Microsoft.Windows.Common-Controls']")
-        if ($null -eq $commonControls -or $commonControls.version -ne "6.0.0.0") {
-            throw "Application manifest resource ID 1 must declare Common Controls v6."
-        }
+        Assert-WindowsManifest -Manifest $manifest
     }
     finally {
         Remove-Item -LiteralPath $manifestPath -Force -ErrorAction SilentlyContinue
