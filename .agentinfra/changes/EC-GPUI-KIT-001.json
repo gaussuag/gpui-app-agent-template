@@ -1,0 +1,87 @@
+{
+  "schema_version": "0.2",
+  "change_id": "EC-GPUI-KIT-001",
+  "title": "Migrate the template to the GPUI Kit application facade",
+  "state": "ready",
+  "lane": "governance",
+  "change_kind": "dependency",
+  "task_start_revision": "10b53c84ee14035bb982b9a6f74f0e372da3f2e9",
+  "intent": {
+    "outcome": "The template builds and runs through GPUI Kit with matching deterministic tests and enforceable dependency rules.",
+    "recovery": "Retain bounded native smoke failure reporting and last-window exit; roll back the atomic UI stack migration if platform validation fails."
+  },
+  "scope": {
+    "allowed_paths": [
+      ".agentinfra/changes/EC-GPUI-KIT-001.json",
+      "Cargo.toml",
+      "Cargo.lock",
+      "crates/app-ui/**",
+      "crates/app-core/AGENTS.md",
+      "AGENTS.md",
+      "README.md",
+      "docs/dependency-policy.md",
+      "docs/architecture.md",
+      "docs/windows-platform.md",
+      "docs/product-identity.md",
+      "docs/agent-development-standard.md",
+      "docs/agent-task-template.md",
+      "docs/testing-standard.md",
+      "docs/decisions/README.md",
+      "docs/decisions/0001-ui-bom.md",
+      "docs/decisions/0007-gpui-kit.md",
+      "scripts/check-architecture.ps1",
+      "scripts/test-policy-scripts.ps1",
+      "scripts/test-ui-dependencies.ps1",
+      "scripts/lib/UiDependencies.psm1"
+    ],
+    "forbidden_paths": [],
+    "expected_crates": [
+      "app-ui",
+      "app-core",
+      "desktop"
+    ]
+  },
+  "budgets": {
+    "new_crates": 0,
+    "dependency_manifest_files": 3,
+    "new_manifests": 0,
+    "new_unsafe_boundaries": 0,
+    "protected_files": 10,
+    "workflow_files": 0,
+    "public_architecture_layers": 0
+  },
+  "architecture": {
+    "changes_owner_or_dependency_direction": false,
+    "changes_async_or_resource_lifecycle": false,
+    "changes_platform_boundary": false,
+    "changes_dependencies": true,
+    "changes_protocol_or_persistence": false,
+    "changes_privacy_or_sensitive_data": false,
+    "changes_unsafe_boundary": false,
+    "changes_public_architecture_layers": false,
+    "adr_paths": [
+      "docs/decisions/0007-gpui-kit.md"
+    ]
+  },
+  "verification": {
+    "profile": "governance",
+    "required_checks": [
+      "change-spec",
+      "scope",
+      "protected-paths",
+      "policy",
+      "executable-constitution-self-tests",
+      "repository-full-gate"
+    ]
+  },
+  "protected_change": true,
+  "residual_risks": [
+    "Native Windows behavior requires build, PE-resource inspection, and smoke evidence; governance delivery remains review_required."
+  ],
+  "owner_decisions": [
+    "User authorizes adapting the template example implementation to GPUI Kit rather than preserving obsolete APIs."
+  ],
+  "exclusions": [
+    "No product features, shell/JavaScript runtime, persistence, toolchain upgrade, remote changes, or new workspace crates."
+  ]
+}
