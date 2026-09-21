@@ -33,7 +33,7 @@ What user-observable success and recoverable failure behavior must be true?
 - Existing worktree changes and owner:
 - Applicable root/scoped instructions:
 - Rust toolchain:
-- GPUI/gpui-component source, versions, and lock identities:
+- GPUI Kit/backend source, versions, and lock identities:
 - Adjacent implementation and test seam:
 
 ## Scope

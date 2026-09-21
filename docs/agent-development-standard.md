@@ -132,7 +132,7 @@ an ADR-backed exception.
   failure cleanup, and the safe interface it exposes.
 - **MUST:** Treat dependency capability, CI compilation, packaged artifact, and
   supported product tier as separate claims.
-- **MUST:** Keep GPUI and gpui-component on the exact reviewed registry BOM and
+- **MUST:** Keep GPUI Kit and its backend on the reviewed registry BOM and
   verify one package identity each. A git source is pinned by exact revision; a
   fork records upstream baseline, delta, compatibility evidence, owner, upgrade,
   and removal plan in an ADR.
@@ -196,7 +196,7 @@ an ADR-backed exception.
 
 Before completion, account for every applicable item:
 
-- current checkout, GPUI/component identity, scoped rules, and user changes;
+- current checkout, Kit/backend identity, scoped rules, and user changes;
 - entry/owner/effect/background/guard/notify/render/error/shutdown chain;
 - lifecycle ledger, channel semantics, capacity, cleanup, and privacy;
 - paired success/failure/cancel/stale/close tests and focused/full checks;

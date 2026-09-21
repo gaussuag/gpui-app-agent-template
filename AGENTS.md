@@ -16,7 +16,7 @@
 4. Read [the architecture](docs/architecture.md) when changing commands,
    effects, state ownership, task ownership, shutdown, or crate dependencies.
 5. Read [the dependency policy](docs/dependency-policy.md) before changing Rust,
-   GPUI, gpui-component, features, sources, patches, or the lockfile.
+   GPUI Kit, backend packages, features, sources, patches, or the lockfile.
 6. Read [the Windows contract](docs/windows-platform.md) before changing
    windows, native APIs, paths, packaging, installers, or platform code.
 7. Read [the product identity contract](docs/product-identity.md) before changing
@@ -39,7 +39,7 @@ only change may shorten this record but still identifies its source of truth.
 ## Repository invariants
 
 - Dependency direction is `desktop -> app-ui -> app-core`; only `app-ui` depends
-  on GPUI and gpui-component.
+  on GPUI Kit.
 - Every mutable state and resource has one authoritative owner. Read-only
   snapshots may be copied; writes return to the owner with revision identity.
 - Render reads prepared state and builds elements. External I/O, sleeps,
@@ -51,7 +51,7 @@ only change may shorten this record but still identifies its source of truth.
   stop path.
 - User-triggered failures become typed outcomes, visible recovery state, and
   redacted diagnostics.
-- GPUI and gpui-component remain one reviewed bill of materials. A fork or git
+- GPUI Kit and its backend remain one reviewed bill of materials. A fork or git
   source requires an ADR with upstream base, delta, owner, and removal plan.
 - Every behavior change carries automated tests at the lowest stable seam in the
   same change. Applicable success, failure, cancel/stale, and owner-drop paths

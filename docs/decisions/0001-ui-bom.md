@@ -1,6 +1,6 @@
 # ADR 0001: Registry-first GPUI bill of materials
 
-- Status: accepted
+- Status: superseded by [ADR 0007](0007-gpui-kit.md)
 - Date: 2026-08-11
 
 ## Decision

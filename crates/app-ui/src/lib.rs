@@ -3,16 +3,16 @@
 use std::{cell::Cell, rc::Rc};
 
 use app_core::{AppState, Command, Effect, Snapshot, WorkStatus};
-use gpui::{
-    App, AppContext as _, Application, Bounds, Context, FocusHandle, Global, Render, Subscription,
-    Task, Window, WindowBounds, WindowOptions, actions,
-    prelude::{InteractiveElement as _, IntoElement, ParentElement as _, Styled as _},
-    px, size,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme as _, Root,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
+};
+use gpui_kit::{
+    App, AppContext as _, Bounds, Context, FocusHandle, Global, Render, Subscription, Task, Window,
+    WindowBounds, WindowOptions, actions,
+    prelude::{InteractiveElement as _, IntoElement, ParentElement as _, Styled as _},
+    px, size,
 };
 
 #[cfg(any(test, feature = "test-support"))]
@@ -53,7 +53,7 @@ struct ApplicationLifecycle {
 impl Global for ApplicationLifecycle {}
 
 fn install_last_window_quit_policy(cx: &mut App, mut request_quit: impl FnMut(&mut App) + 'static) {
-    let last_window_closed = cx.on_window_closed(move |cx| {
+    let last_window_closed = cx.on_window_closed(move |cx, _| {
         if cx.windows().is_empty() {
             request_quit(cx);
         }
@@ -81,48 +81,51 @@ fn run_with_mode(identity: LaunchIdentity, mode: LaunchMode) -> bool {
     let smoke_succeeded = Rc::new(Cell::new(false));
     let smoke_result = smoke_succeeded.clone();
 
-    Application::new().run(move |cx| {
-        gpui_component::init(cx);
-        install_last_window_quit_policy(cx, |cx| cx.quit());
+    gpui_kit::application()
+        .with_assets(gpui_kit::assets::Assets)
+        .run(move |cx| {
+            gpui_kit::init(cx);
+            install_last_window_quit_policy(cx, |cx| cx.quit());
 
-        let bounds = Bounds::centered(None, size(px(920.0), px(620.0)), cx);
-        let opened = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..WindowOptions::default()
-            },
-            move |window, cx| {
-                window.set_window_title(identity.display_name());
-                let view = cx.new(|cx| TemplateView::new(identity, cx));
-                window.focus(&view.read(cx).focus_handle);
+            let bounds = Bounds::centered(None, size(px(920.0), px(620.0)), cx);
+            let opened = cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    ..WindowOptions::default()
+                },
+                move |window, cx| {
+                    window.set_window_title(identity.display_name());
+                    let view = cx.new(|cx| TemplateView::new(identity, cx));
+                    let focus_handle = view.read(cx).focus_handle.clone();
+                    window.focus(&focus_handle, cx);
 
-                if mode == LaunchMode::Smoke {
-                    let action_view = view.clone();
-                    let action_result = smoke_result.clone();
-                    window.on_next_frame(move |window, cx| {
-                        window.dispatch_action(Box::new(Increment), cx);
-
-                        let verified_view = action_view.clone();
-                        let verified_result = action_result.clone();
+                    if mode == LaunchMode::Smoke {
+                        let action_view = view.clone();
+                        let action_result = smoke_result.clone();
                         window.on_next_frame(move |window, cx| {
-                            let snapshot = verified_view.read(cx).state.snapshot();
-                            verified_result.set(snapshot.counter == 1);
-                            window.remove_window();
+                            window.dispatch_action(Box::new(Increment), cx);
+
+                            let verified_view = action_view.clone();
+                            let verified_result = action_result.clone();
+                            window.on_next_frame(move |window, cx| {
+                                let snapshot = verified_view.read(cx).state.snapshot();
+                                verified_result.set(snapshot.counter == 1);
+                                window.remove_window();
+                            });
+                            window.refresh();
                         });
                         window.refresh();
-                    });
-                    window.refresh();
-                }
+                    }
 
-                cx.new(|cx| Root::new(view, window, cx))
-            },
-        );
+                    cx.new(|cx| Root::new(view, window, cx))
+                },
+            );
 
-        if let Err(error) = opened {
-            eprintln!("failed to open the main window: {error}");
-            cx.quit();
-        }
-    });
+            if let Err(error) = opened {
+                eprintln!("failed to open the main window: {error}");
+                cx.quit();
+            }
+        });
 
     mode == LaunchMode::Interactive || smoke_succeeded.get()
 }
@@ -195,9 +198,9 @@ impl Render for TemplateView {
             .child(
                 v_flex()
                     .gap_2()
-                    .child(gpui::div().text_2xl().child(self.display_name()))
+                    .child(gpui_kit::div().text_2xl().child(self.display_name()))
                     .child(
-                        gpui::div()
+                        gpui_kit::div()
                             .text_sm()
                             .text_color(cx.theme().muted_foreground)
                             .child("Windows-first Rust + GPUI scaffold with agent guardrails."),
@@ -215,9 +218,9 @@ impl Render for TemplateView {
                         h_flex()
                             .items_center()
                             .justify_between()
-                            .child(gpui::div().child("Counter"))
+                            .child(gpui_kit::div().child("Counter"))
                             .child(
-                                gpui::div()
+                                gpui_kit::div()
                                     .text_2xl()
                                     .child(snapshot.counter.to_string()),
                             ),
@@ -226,44 +229,34 @@ impl Render for TemplateView {
                         h_flex()
                             .gap_2()
                             .child(
-                                gpui::div()
-                                    .debug_selector(|| "increment-button".to_owned())
-                                    .child(
-                                        Button::new("increment")
-                                            .primary()
-                                            .label("Increment")
-                                            .on_click(cx.listener(|_, _, window, cx| {
-                                                window.dispatch_action(Box::new(Increment), cx);
-                                            })),
-                                    ),
+                                Button::new("increment")
+                                    .primary()
+                                    .label("Increment")
+                                    .on_click(cx.listener(|_, _, window, cx| {
+                                        window.dispatch_action(Box::new(Increment), cx);
+                                    })),
                             )
                             .child(
-                                gpui::div()
-                                    .debug_selector(|| "reset-button".to_owned())
-                                    .child(Button::new("reset").label("Reset").on_click(
-                                        cx.listener(|_, _, window, cx| {
-                                            window.dispatch_action(Box::new(Reset), cx);
-                                        }),
-                                    )),
+                                Button::new("reset").label("Reset").on_click(
+                                    cx.listener(|_, _, window, cx| {
+                                        window.dispatch_action(Box::new(Reset), cx);
+                                    }),
+                                ),
                             )
                             .child(
-                                gpui::div()
-                                    .debug_selector(|| "run-work-button".to_owned())
-                                    .child(
-                                        Button::new("run-work")
-                                            .label(if status_is_running {
-                                                "Restart background work"
-                                            } else {
-                                                "Run background work"
-                                            })
-                                            .on_click(cx.listener(|_, _, window, cx| {
-                                                window.dispatch_action(Box::new(RunWork), cx);
-                                            })),
-                                    ),
+                                Button::new("run-work")
+                                    .label(if status_is_running {
+                                        "Restart background work"
+                                    } else {
+                                        "Run background work"
+                                    })
+                                    .on_click(cx.listener(|_, _, window, cx| {
+                                        window.dispatch_action(Box::new(RunWork), cx);
+                                    })),
                             ),
                     )
                     .child(
-                        gpui::div()
+                        gpui_kit::div()
                             .px_3()
                             .py_2()
                             .rounded_md()
@@ -272,7 +265,7 @@ impl Render for TemplateView {
                     ),
             )
             .child(
-                gpui::div()
+                gpui_kit::div()
                     .text_sm()
                     .text_color(cx.theme().muted_foreground)
                     .child(

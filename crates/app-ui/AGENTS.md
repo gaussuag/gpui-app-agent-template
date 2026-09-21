@@ -1,11 +1,11 @@
 # app-ui owner contract
 
-This file extends [the repository contract](../../AGENTS.md) for the only GPUI
-and gpui-component adapter.
+This file extends [the repository contract](../../AGENTS.md) for the only GPUI Kit
+adapter.
 
 ## Owner and interface
 
-`app-ui` owns Application/window setup, GPUI Entity trees, gpui-component Root
+`app-ui` owns Application/window setup, GPUI Entity trees, Kit component Root
 and theme projection, Action/Event/Focus routing, render projection, adapter
 effects, and UI-scoped Task/Subscription lifetimes. Product state transitions
 remain in `app-core`.
@@ -30,10 +30,10 @@ remain in `app-core`.
 ## Validation
 
 Apply [the automated testing standard](../../docs/testing-standard.md). Use
-`#[gpui::test]`, `TestAppContext`, and `test_support::init_test_app` for changed
+`#[gpui_kit::test]`, `TestAppContext`, and `test_support::init_test_app` for changed
 Entity, Action/Event, focus, component, async completion, or owner-drop behavior.
-Drive the production typed Action and observe state/Event output; use a stable
-debug selector only when testing real pointer hit routing.
+Drive the production typed Action and observe state/Event output; use Kit's
+`TestWindowExt` with the component ElementId for real pointer hit routing.
 
 Focused command:
 

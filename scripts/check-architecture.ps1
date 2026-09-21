@@ -4,20 +4,21 @@ param()
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $cargoPath = & (Join-Path $PSScriptRoot "resolve-cargo.ps1")
+Import-Module (Join-Path $PSScriptRoot "lib\UiDependencies.psm1") -Force
 
 $coreCargo = Join-Path $root "crates\app-core\Cargo.toml"
 $coreSource = Join-Path $root "crates\app-core\src"
 $coreText = Get-Content -Raw $coreCargo
 $sourceViolations = Get-ChildItem -Path $coreSource -Recurse -Filter "*.rs" |
-    Select-String -Pattern "(^\s*(use|extern\s+crate)\s+gpui(_component)?\b|\bgpui(_component)?::)"
+    Select-String -Pattern "(^\s*(use|extern\s+crate)\s+gpui(_\w+)?\b|\bgpui(_\w+)?::)"
 
-if ($coreText -match "\bgpui(-component)?\b" -or $sourceViolations) {
+if ($coreText -match "\bgpui([-_]\w+)*\b" -or $sourceViolations) {
     throw "Architecture violation: app-core must remain independent from GPUI."
 }
 
 $manifestPath = Join-Path $root "Cargo.toml"
 $manifest = Get-Content -Raw $manifestPath
-foreach ($packageName in @("gpui", "gpui-component", "toml", "winresource")) {
+foreach ($packageName in @("gpui-kit", "toml", "winresource")) {
     $dependencyLine = ($manifest -split "`n" |
         Where-Object { $_ -match "^$([regex]::Escape($packageName))\s*=" } |
         Select-Object -First 1)
@@ -35,7 +36,7 @@ if ($manifest -match "(?m)^\[patch\.") {
 
 Push-Location $root
 try {
-    $metadataJson = & $cargoPath metadata --locked --format-version 1
+    $metadataJson = & $cargoPath metadata --locked --format-version 1 --filter-platform x86_64-pc-windows-msvc
     if ($LASTEXITCODE -ne 0) {
         throw "cargo metadata failed with exit code $LASTEXITCODE."
     }
@@ -45,7 +46,8 @@ finally {
 }
 
 $metadata = $metadataJson | ConvertFrom-Json
-foreach ($packageName in @("gpui", "gpui-component", "winresource")) {
+Assert-UiDependencies -Metadata $metadata
+foreach ($packageName in @("winresource")) {
     $packages = @($metadata.packages | Where-Object { $_.name -eq $packageName })
     if ($packages.Count -ne 1) {
         throw "Dependency identity violation: expected one $packageName package, found $($packages.Count)."
@@ -90,9 +92,9 @@ function Assert-Dependencies {
     }
 }
 
-Assert-Dependencies -PackageName "app-core" -Forbidden @("app-ui", "desktop", "gpui", "gpui-component")
-Assert-Dependencies -PackageName "app-ui" -Required @("app-core", "gpui", "gpui-component") -Forbidden @("desktop")
-Assert-Dependencies -PackageName "desktop" -Required @("app-ui") -Forbidden @("app-core", "gpui", "gpui-component")
+Assert-Dependencies -PackageName "app-core" -Forbidden @("app-ui", "desktop")
+Assert-Dependencies -PackageName "app-ui" -Required @("app-core", "gpui-kit") -Forbidden @("desktop")
+Assert-Dependencies -PackageName "desktop" -Required @("app-ui") -Forbidden @("app-core")
 
 $desktopBuildDependencies = @($workspacePackages["desktop"].dependencies | Where-Object {
     $_.kind -eq "build"
@@ -110,20 +112,6 @@ if ($desktopBinaries.Count -ne 1) {
 $desktopBuildScript = Get-Content -Raw (Join-Path $root "crates\desktop\build.rs")
 if ($desktopBuildScript -match '\bset_manifest(_file)?\s*\(') {
     throw "Windows manifest ownership violation: GPUI is the sole application-manifest owner."
-}
-
-$testSupportFeature = @($workspacePackages["app-ui"].features."test-support")
-if ($testSupportFeature -notcontains "gpui/test-support") {
-    throw "Test architecture violation: app-ui test-support must enable gpui/test-support."
-}
-$gpuiTestDependencies = @($workspacePackages["app-ui"].dependencies | Where-Object {
-    $_.name -eq "gpui" -and $_.kind -eq "dev"
-})
-if (
-    $gpuiTestDependencies.Count -ne 1 -or
-    $gpuiTestDependencies[0].features -notcontains "test-support"
-) {
-    throw "Test architecture violation: app-ui needs one GPUI dev dependency with test-support."
 }
 
 Write-Host "Architecture and UI dependency identity checks passed."

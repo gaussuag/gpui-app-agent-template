@@ -120,6 +120,8 @@
         "scripts/check.ps1",
         "scripts/check-agent-contract.ps1",
         "scripts/check-architecture.ps1",
+        "scripts/lib/UiDependencies.psm1",
+        "scripts/test-ui-dependencies.ps1",
         "scripts/check-change-spec.ps1",
         "scripts/check-commit-message.ps1",
         "scripts/check-commits.ps1",

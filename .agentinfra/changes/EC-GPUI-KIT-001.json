@@ -13,6 +13,7 @@
   "scope": {
     "allowed_paths": [
       ".agentinfra/changes/EC-GPUI-KIT-001.json",
+      ".agentinfra/policy.json",
       "Cargo.toml",
       "Cargo.lock",
       "crates/app-ui/**",
@@ -46,7 +47,7 @@
     "dependency_manifest_files": 3,
     "new_manifests": 0,
     "new_unsafe_boundaries": 0,
-    "protected_files": 10,
+    "protected_files": 11,
     "workflow_files": 0,
     "public_architecture_layers": 0
   },

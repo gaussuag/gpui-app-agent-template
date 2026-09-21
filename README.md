@@ -7,12 +7,12 @@ A Windows-first Rust and GPUI desktop application.
 ## What is included
 
 - Rust 1.97.1 and Rust 2024, pinned by `rust-toolchain.toml`.
-- A registry-only UI bill of materials: `gpui = 0.2.2` and
-  `gpui-component = 0.5.1`, both exact requirements.
+- A registry-only UI stack through exact `gpui-kit`, with styled components
+  and bundled icons. `Cargo.lock` records the reviewed backend snapshot.
 - A UI-free state machine in `app-core`.
-- A single GPUI adapter in `app-ui` with owned background task cancellation and
+- A single GPUI Kit adapter in `app-ui` with owned background task cancellation and
   stale-result rejection.
-- GPUI `test-support` with typed Action, real gpui-component click,
+- Kit `test-support` with typed Action, real component click,
   deterministic async/cancel, and owner-drop tests.
 - A thin Windows process entry point in `desktop`.
 - Windows CI, architecture checks, strict linting, and an agent operating
@@ -86,7 +86,7 @@ Run a focused layer while developing:
 
 ```text
 crates/app-core/   Domain state and effects; never depends on GPUI
-crates/app-ui/     The only GPUI and gpui-component adapter
+crates/app-ui/     The only GPUI Kit adapter
 crates/desktop/    Windows executable and process-level startup
 docs/              Architecture, decisions, templates, and Agent guidance
 scripts/           Canonical local verification and run commands
@@ -128,7 +128,7 @@ dynamic validation are reported separately.
 
 ## Dependency upgrades
 
-GPUI and gpui-component are one compatibility unit. Upgrade them in one change,
+GPUI Kit and its resolved GPUI backend are one compatibility unit. Upgrade them together,
 commit the new lockfile, confirm one registry package identity for each, and run
 the complete Windows check. Git dependencies, branches, forks, and `[patch]`
 entries require an architecture decision record and are not baseline upgrades.

@@ -59,8 +59,8 @@ The `desktop` Cargo manifest owns product identity:
 ICON plus `VERSIONINFO`. `desktop` creates an immutable `LaunchIdentity` and
 passes it to `app-ui`; UI code does not parse manifests or read resources.
 
-GPUI's exact `windows-manifest` feature remains the sole owner of application
-manifest resource ID 1. The desktop resource build intentionally does not call
+`gpui-pre/windows-manifest`, enabled by Kit's Windows platform dependency,
+remains the sole owner of application manifest resource ID 1. The desktop resource build intentionally does not call
 `set_manifest` or `set_manifest_file`. The built-artifact check extracts ID 1
 and proves PerMonitorV2 plus Common Controls v6.
 

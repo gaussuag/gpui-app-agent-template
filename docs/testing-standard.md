@@ -85,19 +85,20 @@ channel solely to test it.
 - **SHOULD:** Keep tests independent, order-free, bounded, and descriptive in
   product language. A regression test fails for one behavioral reason.
 
-## GPUI and gpui-component recipe
+## GPUI Kit recipe
 
-The `app-ui` feature `test-support` enables GPUI's deterministic test runtime.
+The `app-ui` feature `test-support` forwards `gpui-kit/test-support` to the matching deterministic test runtime.
 Shared setup lives in `app_ui::test_support::init_test_app`; it initializes the
-same gpui-component globals as production.
+same GPUI Kit globals as production.
 
-1. Use `#[gpui::test]` with `TestAppContext` and create a real test window/View.
+1. Use `#[gpui_kit::test]` with `TestAppContext` and create a real test window/View.
 2. Focus the actual root when keyboard or Action routing depends on focus.
 3. Send the same typed Action used by pointer, keyboard, and menu entry points.
-4. Observe an Entity snapshot or typed Event. Use a real gpui-component control
+4. Observe an Entity snapshot or typed Event. Use a real Kit component control
    for one wiring test; prefer Action tests for the rest.
-5. Use a stable debug selector only when hit testing itself matters. Resolve its
-   bounds at runtime; never assert hard-coded pixels.
+5. Use `gpui_kit::test::TestWindowExt` to click a component's stable ElementId.
+   Kit resolves the rendered target and dispatches pointer events; avoid extra
+   wrapper elements or hard-coded pixels solely for test selection.
 6. Use `run_until_parked` to advance deterministic work. Assert the pending
    state before advancing and the committed state afterward.
 7. Drop/remove the owning Entity or window while work is pending and verify a

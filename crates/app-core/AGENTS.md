@@ -10,7 +10,7 @@ stable caller interface is `AppState::dispatch` plus `AppState::snapshot`.
 
 ## Boundaries
 
-- Keep this crate free of GPUI, gpui-component, Window/Entity types, native
+- Keep this crate free of GPUI Kit and its backend, Window/Entity types, native
   APIs, filesystem/network/database/device/process I/O, and executor selection.
 - Encode product phases and illegal-state prevention with enums and private
   fields. Effects describe adapter work; they do not perform it.

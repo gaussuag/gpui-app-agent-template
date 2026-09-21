@@ -8,7 +8,7 @@ change alters any of these contracts:
 - persisted data, protocol, wire format, or migration semantics;
 - cancellation, close, Quit, shutdown, drain, flush, or join semantics;
 - supported platform tier or a new Win32/COM/FFI/unsafe boundary;
-- GPUI/gpui-component source, git revision, fork, or package identity strategy;
+- GPUI Kit/backend source, git revision, fork, or package identity strategy;
 - an exception to a repository source-risk gate.
 
 Use `proposed`, `accepted`, `superseded`, or `rejected` status. An accepted ADR
@@ -24,3 +24,5 @@ Current decisions:
 - [ADR 0004: Narrow executable change contracts](0004-executable-constitution-core.md)
 - [ADR 0005: Authoritative change contract resolution](0005-authoritative-change-contract-resolution.md)
 - [ADR 0006: Accept executable constitution residuals](0006-executable-constitution-residual-disposition.md)
+
+- [ADR 0007: GPUI Kit application facade](0007-gpui-kit.md)

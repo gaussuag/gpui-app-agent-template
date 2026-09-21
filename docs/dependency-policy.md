@@ -2,70 +2,77 @@
 
 ## Baseline
 
-The authoritative versions are the exact requirements in the root
-`Cargo.toml`; `Cargo.lock` records the resolved package identities and registry
-checksums. GPUI and gpui-component form one bill of materials and are reviewed
-as a unit.
+The root `Cargo.toml` pins the application's exact registry `gpui-kit`
+requirement and explicitly enables `component` and `assets`. Only `app-ui`
+depends on Kit; application imports use `gpui_kit` and
+`gpui_kit::component`. Kit brings the GPUI backend, base, styled components,
+and default icon assets as one compatibility unit.
 
-The baseline permits one registry identity for `gpui` and one for
-`gpui-component`. `scripts/check-architecture.ps1` enforces that property.
+`Cargo.lock` records the resolved versions, registry identities and checksums.
+`workspace.metadata.ui-bom.gpui-pre` records the reviewed backend snapshot.
+The architecture gate compares that declaration to the resolved graph; it is
+not a Cargo version constraint. Keep the lockfile committed and build with
+`--locked`. A lockfile refresh must reapply the reviewed snapshot if Kit's
+semver range would otherwise select a newer, incompatible backend.
 
-The desktop build additionally pins exact registry versions of `toml` and
-`winresource`. They validate Cargo-owned product identity and embed ICON plus
-VERSIONINFO. `winresource` is not an application-manifest owner; GPUI's
-`windows-manifest` feature remains the sole source of manifest resource ID 1.
+The initial pairing is Kit 0.6.4 with GPUI pre 0.3.5. Kit's permissive range
+also resolves 0.3.6, but that snapshot changes the inspector callback API and
+does not compile with component 0.6.4. See [ADR 0007](decisions/0007-gpui-kit.md).
 
-## Resolved feature contract
+`scripts/check-architecture.ps1` requires one registry identity per Kit layer
+and resolved `gpui-pre-*` package, matching Kit layer versions and matching
+GPUI snapshot versions. The republished `gpui-pre-reqwest` fork retains
+reqwest's version and is excluded only from snapshot-version equality.
+The gate rejects legacy GPUI packages and direct UI dependencies outside the
+app-ui Kit facade. Its positive/negative fixtures run in the full gate.
 
-Cargo unions features enabled through every dependency edge.
-`default-features = false` on this workspace's direct GPUI edge does not mean
-the resolved GPUI package has no default features: in the reviewed BOM,
-gpui-component enables `gpui/default`. Treat the resolved dependency graph as
-authoritative and inspect it during every UI BOM upgrade.
+The desktop build also pins exact `toml` and `winresource` versions for
+Cargo-owned product identity, ICON and VERSIONINFO.
 
-`windows-manifest` is an explicit project requirement. It is enabled directly
-so the expected Windows DPI and Common Controls manifest behavior does not
-depend on a transitive default. This does not disable features enabled through
-other dependency edges.
+## Features and Windows resources
 
-Inspect the production Windows feature graph with:
+Cargo unions features across dependency edges. Kit's explicit component and
+assets features do not disable defaults enabled by its transitive dependencies.
+Initialize with `gpui_kit::init` before creating components and launch with
+`gpui_kit::application().with_assets(gpui_kit::assets::Assets)`.
+
+On Windows, the reviewed `gpui-pre-platform` manifest enables
+`gpui-pre/windows-manifest`. That backend remains the sole owner of manifest
+resource ID 1; desktop's `winresource` build must not add a second manifest.
+The architecture gate checks the resolved feature, and the product gate
+extracts the executable's PerMonitorV2 and Common Controls v6 declarations.
+
+Inspect the production Windows graph without development dependencies:
 
 ```powershell
-cargo tree `
-  --locked `
-  --package desktop `
-  --target x86_64-pc-windows-msvc `
-  -e features `
-  -i gpui@0.2.2
+cargo tree --locked --package desktop --target x86_64-pc-windows-msvc -e normal,build,features -i gpui-pre
 ```
+
+The app-ui feature and development dependency both enable
+`gpui-kit/test-support`, which forwards to the matching backend, base and
+component harnesses. Runtime application code does not enable test-support.
 
 ## Upgrade procedure
 
-1. Create a dependency-only branch.
-2. Read the target gpui-component release manifest and confirm its declared
-   GPUI version.
-3. Update both exact root requirements together.
-4. Regenerate and inspect `Cargo.lock`.
-5. Confirm `cargo metadata --locked` contains one registry identity for each UI
-   package.
-6. Run `scripts/check.ps1` on Windows.
-7. Launch the application and verify open, render, input, background completion,
-   reset/cancellation, window close, and process exit.
-8. Record breaking interface migrations and platform changes in the pull
-   request.
+1. Create a dependency-only branch and read the target registry manifests.
+2. Update Kit's exact requirement and the reviewed snapshot declaration together.
+3. Resolve dependencies and pin the reviewed backend, for example:
+   `cargo update -p gpui-pre-platform --precise 0.3.5` for this baseline.
+4. Inspect the complete lockfile and production Windows feature graph.
+5. Run `scripts/check-architecture.ps1` and `scripts/check.ps1` on Windows.
+6. Verify launch, render, input, background completion, reset/cancellation,
+   window close and process exit. Report manual DPI and packaging separately.
+7. Record API adaptations and platform changes; supersede the BOM ADR when the
+   compatibility or source strategy changes.
 
 ## Git and fork escape hatch
 
-A feature unavailable in the registry baseline may justify a pinned git
-revision. Before adopting it, add an ADR containing:
+A capability unavailable in the registry baseline requires an ADR before
+adopting a pinned git revision. Record upstream repository/base, exact revision,
+matching Kit/component revision, package identity strategy, fork delta and
+owner, Windows evidence, upgrade and removal plan. Update the executable
+policy deliberately in a Governance change; an ADR alone does not disable it.
 
-- upstream repository and exact revision;
-- component revision known to match it;
-- package identity strategy for gpui, gpui_platform, and gpui_macros;
-- fork delta and owner, if any;
-- Windows verification evidence;
-- upgrade and removal plan.
-
-Moving branches and unpinned git sources are not release inputs. Do not combine
-a `rev` source with a transitive unqualified git source unless package identity
-has been deliberately unified and verified.
+Moving branches and unpinned sources are not release inputs. Do not combine
+a pinned source with a transitive unqualified git source without deliberately
+unifying and verifying the package identities.
