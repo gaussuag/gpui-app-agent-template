@@ -80,6 +80,13 @@ and `--smoke-test` cannot be combined. See the
 .\scripts\check.ps1
 ```
 
+On an unlocked desktop with Microsoft Pinyin in Chinese input mode, use
+`scripts/check.ps1 -IncludeIme` and
+`scripts/test-generated-project.ps1 -IncludeIme` to also verify real composition,
+Escape cancellation and candidate commit in ordinary preview and Overlay.
+The focused command is `scripts/smoke-overlay.ps1 -Suite ime`.
+The default gate does not certify IME behavior.
+
 That command is the canonical gate for ordinary changes. It runs formatting,
 Clippy, one workspace test run including GPUI Kit test-support, documentation
 links, dependency architecture, identity/dependency validator fixtures, and an explicit

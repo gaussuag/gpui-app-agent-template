@@ -451,7 +451,7 @@ impl Render for OverlayDemo {
     }
 }
 
-struct PreviewSurface(Entity<DemoContent>);
+pub(crate) struct PreviewSurface(pub(crate) Entity<DemoContent>);
 impl Render for PreviewSurface {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let sheet = Root::render_sheet_layer(window, cx);

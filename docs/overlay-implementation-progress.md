@@ -5,6 +5,26 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+Real Microsoft Pinyin comparison now passes on the current 200% desktop in
+both ordinary preview and Interactive Overlay. Guarded virtual-key input opens
+two observed composition sessions: Escape cancels the first, Space commits
+`你好` from the second. The overlay remains Interactive and never reports hidden
+after composition begins; it subsequently returns to HUD with click/wheel
+passthrough and zero native resources after cleanup. This mode does not use
+Unicode packet injection or change the user's input-method settings.
+Evidence: [ordinary composition](overlay-evidence/probe-ime-preview-composition-200.png),
+[overlay composition](overlay-evidence/probe-ime-composition-200.png),
+[ordinary commit](overlay-evidence/probe-ime-preview-input-200.png),
+[overlay commit](overlay-evidence/probe-input-200.png).
+Use `-IncludeIme` on both full gate scripts to include this environment-dependent
+suite; default gates do not claim IME acceptance. Both full gates passed with
+`-IncludeIme`, including generated-project Release resource checks (fixture
+`5cf62bc4`). Standards and Spec reviews each found one acceptance issue, now
+fixed and re-reviewed: non-Chinese keyboard layout is an environment error,
+and final acceptance requires no remaining composition range. The active TSF
+profile and Chinese/English mode remain documented manual prerequisites; the
+layout check alone cannot certify them. Both axes have no remaining findings.
+
 The new `smoke-overlay.ps1 -Suite fallback` deliberately discards WinEvent
 callbacks in the native probe's `test-support` build. The default production
 build does not compile this environment switch or discard callback. The real
@@ -137,7 +157,7 @@ disproved the empty-text failure. The user has been asked for an unlocked,
 undisturbed desktop interval; no safeguard was bypassed.
 
 Still uncompleted beyond the user-deferred display cases: native ordinary-window
-versus overlay comparisons for Chinese IME, clipboard, Tab/Shift+Tab, tooltip,
+versus overlay comparisons for clipboard, Tab/Shift+Tab, tooltip,
 scroll and all temporary layers; performance evidence on a confirmed ordinary
 60 Hz desktop. Missed move/resize/hide/restore notifications are now covered by
 the dedicated native fallback suite above.

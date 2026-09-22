@@ -118,7 +118,9 @@ fn drive_probe(target: usize) -> bool {
     let Some(probe) = std::env::args_os().nth(1) else {
         return true;
     };
-    let interactive = std::env::args().any(|arg| arg == "--interactive");
+    let preview = std::env::args().any(|arg| arg == "--ime-preview");
+    let ime = preview || std::env::args().any(|arg| arg == "--ime");
+    let interactive = ime || std::env::args().any(|arg| arg == "--interactive");
     let demo = std::env::args().any(|arg| arg == "--demo");
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
@@ -137,6 +139,12 @@ fn drive_probe(target: usize) -> bool {
     }
     if interactive {
         command.arg("--interactive");
+    }
+    if ime {
+        command.arg("--ime");
+    }
+    if preview {
+        command.arg("--ime-preview");
     }
     if demo {
         command.arg("--overlay-demo");
@@ -214,7 +222,13 @@ fn drive_probe(target: usize) -> bool {
         && !geometry
         && !fallback
         && close_case.is_none()
-        && let Err(error) = exercise_input(HWND(target as *mut _), child.id(), interactive)
+        && let Err(error) = exercise_input(
+            HWND(target as *mut _),
+            child.id(),
+            interactive,
+            ime,
+            preview,
+        )
     {
         eprintln!(
             "{}: {error}",
@@ -283,8 +297,30 @@ fn drive_probe(target: usize) -> bool {
     passed
 }
 
-fn exercise_input(host: HWND, child_pid: u32, interactive: bool) -> Result<(), String> {
+fn exercise_input(
+    mut host: HWND,
+    child_pid: u32,
+    interactive: bool,
+    ime: bool,
+    preview: bool,
+) -> Result<(), String> {
     let _dpi = super::host::DpiScope::enter();
+    if preview {
+        // SAFETY: filter to visible windows of the child process we created.
+        unsafe {
+            let mut owned = (child_pid, Vec::<HWND>::new());
+            EnumWindows(
+                Some(child_windows),
+                LPARAM((&mut owned as *mut (u32, Vec<HWND>)) as isize),
+            )
+            .map_err(|error| error.to_string())?;
+            host = owned
+                .1
+                .into_iter()
+                .find(|window| IsWindowVisible(*window).as_bool())
+                .ok_or("ordinary preview window not found")?;
+        }
+    }
     // SAFETY: only our fixture HWND is activated. Every system-input batch below
     // independently checks that the foreground belongs to these test processes.
     unsafe {
@@ -320,24 +356,88 @@ fn exercise_input(host: HWND, child_pid: u32, interactive: bool) -> Result<(), S
         }
         click_wheel(host, child_pid, (140., 266.), false)?;
         std::thread::sleep(Duration::from_millis(200));
-        let keys: Vec<_> = "test"
-            .encode_utf16()
-            .flat_map(|unit| {
-                [KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP].map(move |flags| INPUT {
+        if ime {
+            // SAFETY: query only the current foreground thread's layout. The
+            // send_owned guard still revalidates ownership before every batch.
+            let language = unsafe {
+                let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+                GetKeyboardLayout(thread).0 as usize & 0xffff
+            };
+            if language != 0x0804 {
+                return Err("environment: IME suite requires Simplified Chinese Microsoft Pinyin in Chinese input mode".into());
+            }
+            for cancel in [true, false] {
+                let keys: Vec<_> = "NIHAO"
+                    .bytes()
+                    .flat_map(|key| {
+                        [KEYBD_EVENT_FLAGS(0), KEYEVENTF_KEYUP].map(move |flags| INPUT {
+                            r#type: INPUT_KEYBOARD,
+                            Anonymous: INPUT_0 {
+                                ki: KEYBDINPUT {
+                                    wVk: VIRTUAL_KEY(u16::from(key)),
+                                    dwFlags: flags,
+                                    ..Default::default()
+                                },
+                            },
+                        })
+                    })
+                    .collect();
+                send_owned(host, child_pid, &keys, true)?;
+                std::thread::sleep(Duration::from_millis(400));
+                capture(
+                    host,
+                    if preview {
+                        "target/probe-ime-preview-composition.bmp"
+                    } else {
+                        "target/probe-ime-composition.bmp"
+                    },
+                )?;
+                let keys = [KEYBD_EVENT_FLAGS(0), KEYEVENTF_KEYUP].map(|flags| INPUT {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
-                            wScan: unit,
+                            wVk: if cancel { VK_ESCAPE } else { VK_SPACE },
                             dwFlags: flags,
                             ..Default::default()
                         },
                     },
+                });
+                send_owned(host, child_pid, &keys, true)?;
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        } else {
+            let keys: Vec<_> = "test"
+                .encode_utf16()
+                .flat_map(|unit| {
+                    [KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP].map(move |flags| {
+                        INPUT {
+                            r#type: INPUT_KEYBOARD,
+                            Anonymous: INPUT_0 {
+                                ki: KEYBDINPUT {
+                                    wScan: unit,
+                                    dwFlags: flags,
+                                    ..Default::default()
+                                },
+                            },
+                        }
+                    })
                 })
-            })
-            .collect();
-        send_owned(host, child_pid, &keys, true)?;
+                .collect();
+            send_owned(host, child_pid, &keys, true)?;
+        }
         std::thread::sleep(Duration::from_millis(350));
-        capture(host, "target/probe-input.bmp")?;
+        capture(
+            host,
+            if preview {
+                "target/probe-ime-preview-input.bmp"
+            } else {
+                "target/probe-input.bmp"
+            },
+        )?;
+        if preview {
+            println!("PROBE_REAL_INPUT_OK");
+            return Ok(());
+        }
         // The production probe requests HUD after its seven-second input check.
         std::thread::sleep(Duration::from_secs(4));
         click_wheel(host, child_pid, (60., 50.), true)?;

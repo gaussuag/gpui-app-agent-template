@@ -1,7 +1,10 @@
 //! Bounded native acceptance probe through the production facade.
 use super::*;
 use crate::overlay_demo::content::DemoContent;
-use gpui_kit::{AsyncApp, Context, Focusable, Render, Window, WindowOptions, prelude::*};
+use gpui_kit::{
+    AsyncApp, Context, EntityInputHandler as _, Focusable, Render, Window, WindowOptions,
+    prelude::*,
+};
 use std::{
     cell::Cell,
     rc::Rc,
@@ -44,6 +47,7 @@ async fn exercise(
 ) -> Result<(), String> {
     let stress = std::env::args().any(|arg| arg == "--stress");
     let interactive = std::env::args().any(|arg| arg == "--interactive");
+    let ime = std::env::args().any(|arg| arg == "--ime");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -83,8 +87,19 @@ async fn exercise(
         let revisions_valid = Rc::new(Cell::new(true));
         let valid = revisions_valid.clone();
         let content_events = weak_content.clone();
+        let saw_composition = Rc::new(Cell::new(false));
+        let composition_hidden = Rc::new(Cell::new(false));
+        let composing_events = saw_composition.clone();
+        let hidden_events = composition_hidden.clone();
         let _subscription = cx.update(|cx| {
             overlay.observe(cx, move |event, cx| {
+                if ime
+                    && composing_events.get()
+                    && event.snapshot.phase == OverlayPhase::Attached
+                    && event.snapshot.hidden_reason.is_some()
+                {
+                    hidden_events.set(true);
+                }
                 if event.snapshot.revision < last_revision.replace(event.snapshot.revision) {
                     valid.set(false);
                 }
@@ -112,7 +127,37 @@ async fn exercise(
                 })
             })
             .map_err(|error| error.to_string())?;
-            cx.background_executor().timer(Duration::from_secs(7)).await;
+            if ime {
+                let deadline = Instant::now() + Duration::from_secs(7);
+                let mut was_composing = false;
+                let mut composition_sessions = 0;
+                while Instant::now() < deadline {
+                    let composing = cx
+                        .update(|cx| {
+                            overlay.update(cx, |content, window, cx| {
+                                content.input.update(cx, |input, cx| {
+                                    input.marked_text_range(window, cx).is_some()
+                                })
+                            })
+                        })
+                        .map_err(|error| error.to_string())?;
+                    saw_composition.set(saw_composition.get() || composing);
+                    if composing && !was_composing {
+                        composition_sessions += 1;
+                    }
+                    was_composing = composing;
+                    cx.background_executor()
+                        .timer(Duration::from_millis(25))
+                        .await;
+                }
+                if composition_sessions < 2 || was_composing {
+                    return Err(format!(
+                        "Expected canceled and committed IME sessions, observed {composition_sessions}, still_composing={was_composing}"
+                    ));
+                }
+            } else {
+                cx.background_executor().timer(Duration::from_secs(7)).await;
+            }
             if !painted.get() {
                 return Err(
                     "No visible GPUI frame; interactive desktop/foreground required.".into(),
@@ -138,10 +183,28 @@ async fn exercise(
                         })
                     })
                     .map_err(|error| error.to_string())?;
-                if count < 1 || text != "test" {
+                let expected = if ime { "你好" } else { "test" };
+                if count < 1 || text != expected {
                     return Err(format!(
-                        "Real input mismatch: count={count}, text={text:?}, input_focused={focused}; expected count>=1 and text=\"test\"."
+                        "Real input mismatch: count={count}, text={text:?}, input_focused={focused}; expected count>=1 and text={expected:?}."
                     ));
+                }
+                if ime {
+                    let state = cx
+                        .update(|cx| overlay.snapshot(cx))
+                        .map_err(|error| error.to_string())?;
+                    if !saw_composition.get()
+                        || composition_hidden.get()
+                        || state.input_mode != InputMode::Interactive
+                    {
+                        return Err(format!(
+                            "IME composition contract failed: observed={}, hidden={}, mode={:?}",
+                            saw_composition.get(),
+                            composition_hidden.get(),
+                            state.input_mode
+                        ));
+                    }
+                    println!("PROBE_IME_OK composition_observed=true text=你好");
                 }
                 println!("PROBE_CONTENT_INPUT_OK");
                 cx.update(|cx| overlay.set_input_mode(InputMode::Passthrough, cx))
@@ -207,6 +270,74 @@ async fn exercise(
     Ok(())
 }
 
+async fn exercise_preview(cx: &mut AsyncApp) -> Result<(), String> {
+    use crate::overlay_demo::PreviewSurface;
+    use gpui_kit::component::Root;
+    let mut content = None;
+    let preview = cx
+        .update(|cx| {
+            let bounds = gpui_kit::Bounds::centered(
+                None,
+                gpui_kit::size(gpui_kit::px(900.0), gpui_kit::px(650.0)),
+                cx,
+            );
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(gpui_kit::WindowBounds::Windowed(bounds)),
+                    ..WindowOptions::default()
+                },
+                |window, cx| {
+                    let view = cx.new(|cx| DemoContent::new(InputMode::Interactive, window, cx));
+                    content = Some(view.clone());
+                    let surface = cx.new(|_| PreviewSurface(view));
+                    cx.new(|cx| Root::new(surface, window, cx))
+                },
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    let content = content.ok_or("Preview content was not created")?;
+    let outcome = async {
+        let deadline = Instant::now() + Duration::from_secs(7);
+        let mut was_composing = false;
+        let mut sessions = 0;
+        while Instant::now() < deadline {
+            let composing = cx
+                .update(|cx| {
+                    preview.update(cx, |_, window, cx| {
+                        content.update(cx, |view, cx| {
+                            view.input.update(cx, |input, cx| {
+                                input.marked_text_range(window, cx).is_some()
+                            })
+                        })
+                    })
+                })
+                .map_err(|error| error.to_string())?;
+            if composing && !was_composing {
+                sessions += 1;
+            }
+            was_composing = composing;
+            cx.background_executor()
+                .timer(Duration::from_millis(25))
+                .await;
+        }
+        let (count, text) = cx.update(|cx| {
+            let view = content.read(cx);
+            (view.count, view.input.read(cx).value().to_string())
+        });
+        if count != 1 || text != "你好" || sessions < 2 || was_composing {
+            return Err(format!(
+                "Ordinary preview IME failed: count={count}, text={text:?}, sessions={sessions}, still_composing={was_composing}"
+            ));
+        }
+        println!("PROBE_IME_PREVIEW_OK composition_sessions={sessions} text=你好");
+        Ok(())
+    }
+    .await;
+    cx.update(|cx| preview.update(cx, |_, window, _| window.remove_window()))
+        .map_err(|error| error.to_string())?;
+    outcome
+}
+
 #[must_use]
 pub fn run_feasibility_probe() -> bool {
     let succeeded = Rc::new(Cell::new(false));
@@ -240,6 +371,9 @@ pub fn run_feasibility_probe() -> bool {
             let resolved = resolve_host(RawHostHandle(raw), cx);
             cx.spawn(async move |cx| {
                 let outcome = match resolved.await {
+                    Ok(_) if std::env::args().any(|arg| arg == "--ime-preview") => {
+                        exercise_preview(cx).await
+                    }
                     Ok(host) => exercise(owner.into(), host, cx).await,
                     Err(error) => Err(error.to_string()),
                 };

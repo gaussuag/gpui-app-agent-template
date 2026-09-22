@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$IncludeIme)
 
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -47,6 +47,9 @@ try {
     & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $productProfile -ArtifactPath $artifactPath
     & (Join-Path $PSScriptRoot "smoke.ps1") -SkipBuild
     & (Join-Path $PSScriptRoot "smoke-overlay.ps1")
+    if ($IncludeIme) {
+        & (Join-Path $PSScriptRoot "smoke-overlay.ps1") -Suite ime
+    }
 }
 finally {
     Pop-Location
