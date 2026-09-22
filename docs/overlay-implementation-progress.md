@@ -5,6 +5,12 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+The user accepts the 60 Hz item by manual acceptance: both current displays
+are reported as 60 Hz, functionality is normal, and no further refresh-rate
+coverage is requested. Historical timing samples passed their thresholds but
+did not record the window's monitor/refresh rate; this acceptance does not
+retroactively certify their monitor attribution. No further 60 Hz test is due.
+
 The user also confirmed all three manual workflow checks passed: content
 retention across HUD/Interactive switches, hide/restore alignment, and host
 switching/host-close/control-window-close without residual overlays. This is
@@ -203,9 +209,9 @@ Two subsequent native attempts were blocked before input by foreground guards
 disproved the empty-text failure. The user has been asked for an unlocked,
 undisturbed desktop interval; no safeguard was bypassed.
 
-Still uncompleted beyond the user-deferred display cases: performance evidence
-on a confirmed ordinary 60 Hz desktop, plus the current stage's unified gates
-deferred at the user's request. Missed move/resize/hide/restore notifications are covered by
+Still uncompleted: user-deferred DPI/multi-monitor display cases and the current
+stage's unified gates deferred at the user's request. The 60 Hz item has been
+accepted manually by the user as recorded above. Missed move/resize/hide/restore notifications are covered by
 the dedicated native fallback suite above.
 Existing headless component/lifecycle tests do not replace those native checks.
 
