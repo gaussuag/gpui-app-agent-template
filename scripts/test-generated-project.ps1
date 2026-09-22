@@ -128,6 +128,16 @@ finally {
         if (-not $resolvedFixture.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Refusing to remove fixture outside the system temporary directory: $resolvedFixture"
         }
+        # Preserve controlled native evidence before deleting the temporary
+        # project, especially when a gate failed. Each run gets its own folder.
+        $evidenceDirectory = Join-Path $sourceRoot ("target/generated-overlay/" + (Split-Path $resolvedFixture -Leaf))
+        foreach ($evidenceName in @("probe-hud.bmp", "probe-interactive.bmp", "probe-input.bmp", "probe-switched.bmp", "overlay-geometry.json")) {
+            $evidencePath = Join-Path $resolvedFixture "target/$evidenceName"
+            if (Test-Path -LiteralPath $evidencePath -PathType Leaf) {
+                New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null
+                Copy-Item -LiteralPath $evidencePath -Destination (Join-Path $evidenceDirectory $evidenceName)
+            }
+        }
         Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
     }
 }

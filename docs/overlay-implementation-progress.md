@@ -3,7 +3,85 @@
 Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 `03c0e72` on `dev/gpui_overlay_component`; initial worktree clean.
 
-## Current stage
+## Current status (2026-09-22)
+
+The reusable overlay module, host selector, shared business content and lifecycle
+implementation are committed in `5f59181`. Stage 3 native acceptance is still in
+progress; the goal is not fully accepted. Earlier entries below are historical
+checkpoints, not the current result.
+
+- The user explicitly deferred 100%/150% scaling, negative-coordinate monitors
+  and cross-monitor checks. Keep these **uncompleted**, not passed or removed
+  from the spec. Current native evidence is at 192 DPI (200%).
+- The interactive-desktop restriction was resolved by running controlled native
+  tests in the interactive session. Foreground and target-process safeguards
+  remain enabled. Both HUD and Interactive smoke now pass with actual SendInput:
+  opaque HUD content passes one click and wheel to the external host without
+  activation; Interactive increments the production button, enters `test`, then
+  switches back to HUD and passes the next click/wheel to the host.
+- The input failure was a fixture hit point inside the input's outer frame.
+  Moving it to the measured editor center made several native runs pass. A later
+  generated-project run still failed with count 1 and empty text, so this is
+  **not yet a proven complete fix**. UTF-16 Unicode
+  packet input avoids keyboard-layout dependence; it does **not** prove Chinese
+  IME composition, physical-key editing or clipboard behavior.
+- Screenshots capture only the controlled host client area. Lossless PNG copies:
+  [HUD](overlay-evidence/hud-200.png),
+  [Interactive input](overlay-evidence/input-200.png),
+  [returned HUD](overlay-evidence/switched-200.png).
+  Visual inspection confirms the real green host through transparent regions,
+  readable `test`, count 1 and no native overlay frame or black background.
+- Native geometry covers 32 changed position/size samples, maximize/restore,
+  minimize/hide/reappear and a foreground owned host popup. Every observed edge
+  must be within one physical pixel; each sample has a 100 ms bound and P95 a
+  50 ms bound. JSON stores all sorted samples and the **asserted error bound**,
+  rather than pretending the bound is a measured maximum.
+  Latest repository run: [32 raw samples](overlay-evidence/geometry-200.json),
+  P95 3.759 ms, maximum 3.779 ms; minimize/hide observations 28.783/28.726 ms.
+- Timing is measured from immediately before fixture SetWindowPos until its
+  observer sees overlay alignment. It includes the host operation and observer
+  scheduling; it is not the demo's sample-to-apply counter or a WinEvent timestamp.
+  The tested desktop reports 3840x2160 at 144 Hz through GameViewer Virtual
+  Display Adapter. Windows 11 Enterprise 26100, i7-13700, RTX 4060 Ti are present.
+  This is not evidence for the spec's ordinary 60 Hz desktop requirement.
+- The whole repository gate and generated-project initialization, canonical
+  checks, mutable identity and Release resource verification passed. A generated
+  project failure exposed a missing screenshot output directory; the fixture
+  now creates it. After the final review fixes, the repository gate passed again:
+  38 tests, all native suites, 100 cycles in 21.6 seconds and zero remaining
+  workers/hooks/bindings. The latest generated-project repeat then failed at
+  Interactive input (count 1, empty text); its later Release stages did not run.
+  Keep the earlier generated Release pass separate from this latest failure.
+- Final Standards review found geometry environment failures misclassified as
+  product failures. Final Spec review found a late successful observation could
+  bypass the time limit. Both were corrected; a regression test now rejects a
+  successful predicate observed after its deadline. No production requirements
+  or acceptance thresholds were weakened. Both review agents rechecked their
+  fixes and reported no remaining actionable findings on their respective axes.
+
+Current diagnosis: distinguish a layout-dependent click miss, delayed input
+focus and Unicode/IME handling. Probe failure now reports logical input focus.
+Generated-project cleanup preserves controlled screenshots/geometry under
+`target/generated-overlay/<fixture-name>/` before removing the temporary copy.
+Two subsequent native attempts were blocked before input by foreground guards
+(direct launch and the formal hidden-process script). Neither reproduced nor
+disproved the empty-text failure. The user has been asked for an unlocked,
+undisturbed desktop interval; no safeguard was bypassed.
+
+Still uncompleted beyond the user-deferred display cases: native ordinary-window
+versus overlay comparisons for Chinese IME, clipboard, Tab/Shift+Tab, tooltip,
+scroll and all temporary layers; Windows Snap, cloaked and deliberately missed
+notifications; performance evidence on a confirmed ordinary 60 Hz desktop.
+Existing headless component/lifecycle tests do not replace those native checks.
+
+Run `cargo run --locked -p desktop -- --overlay-demo`. Refresh/select an external
+ordinary window, attach, return to that host and move/resize it; use Interactive
+to edit content, then Esc to return to HUD. Closing the external host or the
+control window must remove the overlay and release its native resources.
+Automated suites: `scripts/check.ps1`, `scripts/test-generated-project.ps1`, or
+focused `scripts/smoke-overlay.ps1 -Suite input` / `-Suite geometry`.
+
+## Historical stage 1 checkpoint
 
 Stage 1 feasibility plus the first Stage 2 public API/lifecycle path. Not a
 completed implementation; no local commit has been made yet.

@@ -25,6 +25,7 @@ pub fn resource_counts() -> crate::ResourceCounts {
 }
 
 mod fixture;
+mod geometry;
 mod host;
 mod watch;
 use crate::InputMode;

@@ -121,6 +121,7 @@ fn drive_probe(target: usize) -> bool {
     let interactive = std::env::args().any(|arg| arg == "--interactive");
     let demo = std::env::args().any(|arg| arg == "--demo");
     let stress = std::env::args().any(|arg| arg == "--stress");
+    let geometry = std::env::args().any(|arg| arg == "--geometry");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -206,6 +207,7 @@ fn drive_probe(target: usize) -> bool {
     }
     if !demo
         && !stress
+        && !geometry
         && close_case.is_none()
         && let Err(error) = exercise_input(HWND(target as *mut _), child.id(), interactive)
     {
@@ -218,6 +220,27 @@ fn drive_probe(target: usize) -> bool {
             }
         );
         passed = false;
+    }
+    if geometry {
+        // SAFETY: enumerate candidates only in the child started by this fixture.
+        let mut owned = (child.id(), Vec::<HWND>::new());
+        unsafe {
+            let _ = EnumWindows(
+                Some(child_windows),
+                LPARAM((&mut owned as *mut (u32, Vec<HWND>)) as isize),
+            );
+        }
+        if let Err(error) = super::geometry::run(HWND(target as *mut _), &owned.1) {
+            eprintln!(
+                "{}: {error}",
+                if error.starts_with("environment:") {
+                    "PROBE_ABORTED"
+                } else {
+                    "PROBE_GEOMETRY_FAILED"
+                }
+            );
+            passed = false;
+        }
     }
     loop {
         match child.try_wait() {
@@ -285,16 +308,16 @@ fn exercise_input(host: HWND, child_pid: u32, interactive: bool) -> Result<(), S
         if clicks != 0 || wheels != 0 {
             return Err("interactive input leaked to host".into());
         }
-        click_wheel(host, child_pid, (140., 254.), false)?;
+        click_wheel(host, child_pid, (140., 266.), false)?;
         std::thread::sleep(Duration::from_millis(200));
-        let keys: Vec<_> = "TEST"
-            .bytes()
+        let keys: Vec<_> = "test"
+            .encode_utf16()
             .flat_map(|unit| {
-                [KEYBD_EVENT_FLAGS(0), KEYEVENTF_KEYUP].map(move |flags| INPUT {
+                [KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP].map(move |flags| INPUT {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
-                            wVk: VIRTUAL_KEY(u16::from(unit)),
+                            wScan: unit,
                             dwFlags: flags,
                             ..Default::default()
                         },
@@ -397,10 +420,19 @@ fn click_wheel(host: HWND, child_pid: u32, point: (f64, f64), wheel: bool) -> Re
 }
 
 fn capture(host: HWND, path: &str) -> Result<(), String> {
-    // SAFETY: capture only the current rectangle of the controlled fixture.
+    // SAFETY: capture only our client area, excluding desktop pixels around
+    // rounded native borders and any unrelated application behind them.
     unsafe {
         let mut rect = RECT::default();
-        GetWindowRect(host, &mut rect).map_err(|error| error.to_string())?;
+        GetClientRect(host, &mut rect).map_err(|error| error.to_string())?;
+        let mut origin = POINT::default();
+        if !ClientToScreen(host, &mut origin).as_bool() {
+            return Err("capture client mapping failed".into());
+        }
+        rect.right += origin.x;
+        rect.bottom += origin.y;
+        rect.left = origin.x;
+        rect.top = origin.y;
         capture_rect(path, rect).map_err(|error| error.to_string())
     }
 }
@@ -419,6 +451,9 @@ unsafe extern "system" fn child_windows(hwnd: HWND, data: LPARAM) -> ::windows::
 }
 
 unsafe fn capture_rect(path: &str, rect: RECT) -> std::io::Result<()> {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     // SAFETY: temporary GDI objects are selected/restored/deleted synchronously;
     // the bitmap buffer has exactly width * height * 4 bytes.
     unsafe {

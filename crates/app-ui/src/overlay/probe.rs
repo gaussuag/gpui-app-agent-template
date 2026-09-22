@@ -1,7 +1,7 @@
 //! Bounded native acceptance probe through the production facade.
 use super::*;
 use crate::overlay_demo::content::DemoContent;
-use gpui_kit::{AsyncApp, Context, Render, Window, WindowOptions, prelude::*};
+use gpui_kit::{AsyncApp, Context, Focusable, Render, Window, WindowOptions, prelude::*};
 use std::{
     cell::Cell,
     rc::Rc,
@@ -127,17 +127,21 @@ async fn exercise(
                 return Err("Overlay never reached visible foreground acceptance state.".into());
             }
             if interactive {
-                let content_ok = cx
+                let (count, text, focused) = cx
                     .update(|cx| {
-                        overlay.update(cx, |content, _, cx| {
-                            content.count >= 1 && content.input.read(cx).value().as_ref() == "test"
+                        overlay.update(cx, |content, window, cx| {
+                            (
+                                content.count,
+                                content.input.read(cx).value().to_string(),
+                                content.input.read(cx).focus_handle(cx).is_focused(window),
+                            )
                         })
                     })
                     .map_err(|error| error.to_string())?;
-                if !content_ok {
-                    return Err(
-                        "Real button/text input did not reach production DemoContent.".into(),
-                    );
+                if count < 1 || text != "test" {
+                    return Err(format!(
+                        "Real input mismatch: count={count}, text={text:?}, input_focused={focused}; expected count>=1 and text=\"test\"."
+                    ));
                 }
                 println!("PROBE_CONTENT_INPUT_OK");
                 cx.update(|cx| overlay.set_input_mode(InputMode::Passthrough, cx))
