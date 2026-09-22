@@ -5,6 +5,20 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+After the user confirmed an unlocked desktop, native testing resumed on
+`5c0a8ea`. The focused HUD/Interactive suite passed, followed by the complete
+generated-project check: 38 tests, 100 lifecycle cycles (21.65 seconds), all
+close cases, real input, geometry, mutable product identity and Release resource
+inspection. The generated geometry P95 was 3.908 ms (32 samples, maximum
+4.948 ms), with all observed edges within one physical pixel. Controlled evidence
+was successfully preserved under `target/generated-overlay/gpui fixture c729c6b5/`.
+This clears the current foreground environment blocker. The earlier empty-text
+failure did not recur in three input runs; its root cause remains unproven.
+The main-repository gate also passed on the same revision: 100 cycles in
+21.83 seconds, successful native input, geometry P95 3.832 ms (maximum 4.529 ms),
+and completed cleanup with resource counts at zero. All native checks listed as
+uncompleted below still require their own evidence.
+
 Latest continuation: component comparison exposed and fixed a production bug:
 Sheet's Cancel closes the sheet but propagates, so the same Escape also requested
 HUD mode. A failing test first proved this in overlay while ordinary preview
