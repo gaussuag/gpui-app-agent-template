@@ -5,6 +5,24 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+The native geometry suite now includes real DWM cloak/uncloak and Win+Left Snap.
+The cloak test checks the [documented DWM state](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute),
+requires host foreground and WS_VISIBLE to remain unchanged, observes overlay
+hiding within a total 500 ms, then restores the host and checks visible alignment.
+Focused runs passed (first cloak-to-hidden observation: 258.442 ms).
+Snap uses guarded SendInput on the fixture host, verifies half-work-area placement,
+allows the shell's animation/Snap Assist to settle, then reactivates only the
+fixture and asserts <=1 px alignment within 100 ms. It does not claim the entire
+Win+Left animation takes <=100 ms. The first run exposed the fixture's premature
+foreground assumption; checking actual foreground fixed it without relaxing the
+overlay alignment bound. JSON now records cloak latency and Snap completion.
+This does not replace deliberately dropping WinEvent notifications to prove the
+fallback path. The main repository gate passed with cloak-to-hidden 260.809 ms
+and Snap alignment within one physical pixel. Generated-project canonical and
+Release-resource checks also passed, including the final environment-error
+classification fix. Standards and Spec reviews reported no remaining actionable
+finding after that fix. Native code remains entirely in the adapter.
+
 After the user confirmed an unlocked desktop, native testing resumed on
 `5c0a8ea`. The focused HUD/Interactive suite passed, followed by the complete
 generated-project check: 38 tests, 100 lifecycle cycles (21.65 seconds), all
@@ -69,7 +87,7 @@ checkpoints, not the current result.
   50 ms bound. JSON stores all sorted samples and the **asserted error bound**,
   rather than pretending the bound is a measured maximum.
   Latest repository run: [32 raw samples](overlay-evidence/geometry-200.json),
-  P95 3.759 ms, maximum 3.779 ms; minimize/hide observations 28.783/28.726 ms.
+  P95 4.009 ms, maximum 4.062 ms; minimize/hide observations 12.942/29.280 ms.
 - Timing is measured from immediately before fixture SetWindowPos until its
   observer sees overlay alignment. It includes the host operation and observer
   scheduling; it is not the demo's sample-to-apply counter or a WinEvent timestamp.
@@ -102,8 +120,8 @@ undisturbed desktop interval; no safeguard was bypassed.
 
 Still uncompleted beyond the user-deferred display cases: native ordinary-window
 versus overlay comparisons for Chinese IME, clipboard, Tab/Shift+Tab, tooltip,
-scroll and all temporary layers; Windows Snap, cloaked and deliberately missed
-notifications; performance evidence on a confirmed ordinary 60 Hz desktop.
+scroll and all temporary layers; deliberately missed notifications; performance
+evidence on a confirmed ordinary 60 Hz desktop.
 Existing headless component/lifecycle tests do not replace those native checks.
 
 Run `cargo run --locked -p desktop -- --overlay-demo`. Refresh/select an external

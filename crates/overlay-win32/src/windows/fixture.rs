@@ -358,7 +358,7 @@ fn owned_foreground(host: HWND, child_pid: u32, require_child: bool) -> bool {
     }
 }
 
-fn send_owned(
+pub(super) fn send_owned(
     host: HWND,
     child_pid: u32,
     input: &[INPUT],
