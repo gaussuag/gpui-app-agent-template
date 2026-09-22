@@ -81,6 +81,20 @@ Existing preview windows keep their initial setting. Automated probes explicitly
 enable markers. Markers belong to `DemoContent`, not `OverlayOptions`: applications
 supplying their own content to `overlay::open_window` receive no corner decoration.
 
+The Demo also provides four margin inputs (top/right/bottom/left) and “应用边距”.
+Values are nonnegative whole logical pixels and scale with the host DPI. Try
+`48 / 8 / 8 / 8` for client-drawn chrome, then adjust to the host's actual layout.
+Margins exclude both drawing and input; oversized values hide the overlay until
+space becomes available again. Changes preserve content and apply without moving
+the host. Ordinary previews are unaffected.
+
+Business callers set `OverlayOptions.margins: OverlayMargins` and can call
+`overlay.set_margins(margins, cx)` on an existing session. Use
+`OverlayMargins::default()` for full-client coverage. Snapshots retain the host's
+`physical_client_rect` and expose the inset `physical_overlay_rect` plus applied
+`margins`. `scripts/smoke-overlay.ps1 -Suite margins` tests actual caption dragging
+and border resizing on a controlled client-drawn host in both input modes.
+
 ## Verify
 
 ```powershell

@@ -53,6 +53,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
             };
         let mut applied_revision = None;
         let mut sequence = 0;
+        let mut applied_margins = None;
         let mut saved_focus = None;
         let mut visible = false;
         while failure.is_none() {
@@ -65,9 +66,10 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                     session.snapshot.phase.clone(),
                     session.desired_mode,
                     session.mode_revision,
+                    session.desired_margins,
                 )
             });
-            let Ok((phase, mode, revision)) = request else {
+            let Ok((phase, mode, revision, margins)) = request else {
                 break;
             };
             if !runtime::is_open(&phase) {
@@ -146,22 +148,30 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                 }
                 None => break,
             };
+            let update = update.filter(|update| {
+                update.generation == host.generation() && update.sequence > sequence
+            });
+            let sampled_at = update
+                .as_ref()
+                .map(|value| value.sampled_at)
+                .unwrap_or_else(std::time::Instant::now);
+            let should_apply = update.is_some() || applied_margins != Some(margins);
             if let Some(update) = update {
-                if update.generation != host.generation() || update.sequence <= sequence {
-                    continue;
-                }
                 sequence = update.sequence;
-                let sampled_at = update.sampled_at;
+
                 if let Some(error) = update.terminal {
                     failure = Some(error);
                     break;
                 }
-                match native.apply_host(host, sequence) {
+            }
+            if should_apply {
+                match native.apply_host(host, sequence, margins) {
                     Ok(actual) => {
                         if let Some(error) = actual.terminal {
                             failure = Some(error);
                             break;
                         }
+                        applied_margins = Some(margins);
                         let now_visible = actual.visibility_reason.is_none();
                         if visible && !now_visible {
                             let focus = window
@@ -185,12 +195,18 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             }
                             let ready = session.snapshot.phase == OverlayPhase::Attaching;
                             let changed = ready
+                                || session.snapshot.margins != margins
+                                || session.snapshot.physical_overlay_rect
+                                    != Some(actual.physical_overlay_rect)
                                 || session.snapshot.physical_client_rect
                                     != Some(actual.physical_client_rect)
                                 || session.snapshot.hidden_reason != actual.visibility_reason;
                             session.snapshot.phase = OverlayPhase::Attached;
                             session.snapshot.physical_client_rect =
                                 Some(actual.physical_client_rect);
+                            session.snapshot.physical_overlay_rect =
+                                Some(actual.physical_overlay_rect);
+                            session.snapshot.margins = margins;
                             session.snapshot.hidden_reason = actual.visibility_reason;
                             if changed {
                                 session.snapshot.native_updates += 1;

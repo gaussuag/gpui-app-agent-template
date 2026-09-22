@@ -3,8 +3,8 @@ pub(crate) mod content;
 use crate::{
     LaunchIdentity,
     overlay::{
-        self, HostInfo, HostWindowId, InputMode, OverlayEvent, OverlayEventKind, OverlayOptions,
-        OverlayPhase, OverlaySnapshot, OverlayWindow,
+        self, HostInfo, HostWindowId, InputMode, OverlayEvent, OverlayEventKind, OverlayMargins,
+        OverlayOptions, OverlayPhase, OverlaySnapshot, OverlayWindow,
     },
 };
 use content::DemoContent;
@@ -28,6 +28,7 @@ actions!(
         DetachHost,
         ToggleMode,
         ToggleCornerMarkers,
+        ApplyMargins,
         PreviewContent,
         SelectNext,
         SelectPrevious
@@ -59,6 +60,9 @@ pub(crate) struct OverlayDemo {
     requested_mode: Option<InputMode>,
     error: Option<String>,
     corner_markers: bool,
+    margins: OverlayMargins,
+    margin_inputs: [Entity<InputState>; 4],
+    margin_error: Option<String>,
 }
 
 impl OverlayDemo {
@@ -96,6 +100,11 @@ impl OverlayDemo {
             requested_mode: None,
             error: None,
             corner_markers: false,
+            margins: OverlayMargins::default(),
+            margin_inputs: std::array::from_fn(|_| {
+                cx.new(|cx| InputState::new(window, cx).default_value("0"))
+            }),
+            margin_error: None,
         };
         view.refresh(cx);
         view
@@ -198,6 +207,7 @@ impl OverlayDemo {
         let opened = overlay::open_window(
             host,
             OverlayOptions {
+                margins: self.margins,
                 owner: self.owner,
                 input_mode: InputMode::Passthrough,
             },
@@ -285,6 +295,34 @@ impl OverlayDemo {
         }
         cx.notify();
     }
+    fn apply_margins(&mut self, cx: &mut Context<Self>) {
+        let values: Result<Vec<u32>, _> = self
+            .margin_inputs
+            .iter()
+            .map(|input| input.read(cx).value().trim().parse::<u32>())
+            .collect();
+        let Ok(values) = values else {
+            self.margin_error = Some("边距请输入非负整数（逻辑像素）。".into());
+            cx.notify();
+            return;
+        };
+        let margins = OverlayMargins {
+            top: values[0],
+            right: values[1],
+            bottom: values[2],
+            left: values[3],
+        };
+        if let Some(active) = &self.active
+            && let Err(error) = active.set_margins(margins, cx)
+        {
+            self.margin_error = Some(error.to_string());
+            cx.notify();
+            return;
+        }
+        self.margins = margins;
+        self.margin_error = None;
+        cx.notify();
+    }
     fn toggle_corner_markers(&mut self, cx: &mut Context<Self>) {
         self.corner_markers = !self.corner_markers;
         if let Some(active) = &self.active
@@ -356,6 +394,7 @@ impl Render for OverlayDemo {
             .on_action(
                 cx.listener(|view, _: &ToggleCornerMarkers, _, cx| view.toggle_corner_markers(cx)),
             )
+            .on_action(cx.listener(|view, _: &ApplyMargins, _, cx| view.apply_margins(cx)))
             .on_action(cx.listener(|view, _: &PreviewContent, _, cx| view.preview(cx)))
             .on_action(cx.listener(|view, _: &SelectNext, _, cx| view.move_selection(1, cx)))
             .on_action(cx.listener(|view, _: &SelectPrevious, _, cx| view.move_selection(-1, cx)))
@@ -476,6 +515,37 @@ impl Render for OverlayDemo {
                         window.dispatch_action(Box::new(ToggleCornerMarkers), cx)
                     }),
             )
+            .child(
+                div()
+                    .text_sm()
+                    .child("Overlay 边距（逻辑像素，随 DPI 缩放）"),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .children(["上", "右", "下", "左"].into_iter().enumerate().map(
+                        |(index, label)| {
+                            v_flex().flex_1().min_w_0().child(label).child(
+                                Input::new(&self.margin_inputs[index])
+                                    .id(("overlay-margin", index)),
+                            )
+                        },
+                    ))
+                    .child(
+                        Button::new("overlay-apply-margins")
+                            .label("应用边距")
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(ApplyMargins), cx)
+                            }),
+                    ),
+            )
+            .child(div().text_xs().child(format!(
+                "已提交：上 {} / 右 {} / 下 {} / 左 {}。留白不显示 Overlay；过大时暂时隐藏。",
+                self.margins.top, self.margins.right, self.margins.bottom, self.margins.left
+            )))
+            .when_some(self.margin_error.clone(), |view, error| {
+                view.child(div().text_color(cx.theme().danger).child(error))
+            })
             .child(div().text_sm().child(status))
             .when_some(self.error.clone(), |view, error| {
                 view.child(
@@ -555,6 +625,7 @@ mod tests {
                         crate::overlay::open_window(
                             HostWindowId::fixture(78),
                             OverlayOptions {
+                                margins: Default::default(),
                                 owner: owner.into(),
                                 input_mode: InputMode::Interactive,
                             },
@@ -741,6 +812,35 @@ mod tests {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             div()
         }
+    }
+
+    #[gpui_kit::test]
+    fn margins_ui_validates_and_applies_to_active_session(cx: &mut TestAppContext) {
+        let (view, cx, _) = setup(cx);
+        cx.dispatch_action(SelectNext);
+        cx.dispatch_action(AttachSelected);
+        tick(cx);
+        let top = view.read_with(cx, |view, _| view.margin_inputs[0].clone());
+        for (text, expected) in [("48", 48), ("-1", 48), ("oops", 48), ("0", 0)] {
+            cx.update(|window, app| top.update(app, |input, cx| input.set_value(text, window, cx)));
+            cx.update(|window, app| window.click("overlay-apply-margins", app));
+            tick(cx);
+            assert_eq!(view.read_with(cx, |view, _| view.margins.top), expected);
+            assert_eq!(
+                view.read_with(cx, |view, _| view.margin_error.is_some()),
+                text == "-1" || text == "oops"
+            );
+            assert_eq!(
+                view.read_with(cx, |view, app| view
+                    .active
+                    .as_ref()
+                    .and_then(|active| active.snapshot(app).ok())
+                    .map(|state| state.margins.top)),
+                Some(expected)
+            );
+        }
+        cx.dispatch_action(DetachHost);
+        tick(cx);
     }
 
     #[gpui_kit::test]

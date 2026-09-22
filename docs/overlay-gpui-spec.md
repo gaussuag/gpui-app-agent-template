@@ -119,6 +119,18 @@ Windows 系统知识全部收口在 `overlay-win32`：overlay-gpui 不出现 win
 
 ### 4.2 像普通 GPUI 窗口一样创建与更新
 
+2026-09-22 用户确认扩展：`OverlayMargins { top, right, bottom, left }` 四边使用
+`u32` 逻辑像素（96 DPI），默认全零。按宿主当前 DPI 换算，四舍五入到物理像素，
+从完整客户区向内扣除；HUD 和 Interactive 均生效。留白区域既不绘制 Overlay，
+也不拦截宿主输入；不模拟宿主拖动，不自动识别自绘标题栏。
+`set_margins` 在原会话内异步应用，不重建内容，也不等待宿主移动。
+边距过大时将剩余区域钳制为空，隐藏并报告 `EmptyViewport`；缩小边距或宿主变大后恢复。
+`physical_client_rect` 仍表示宿主客户区；新增 `physical_overlay_rect` 表示实际覆盖区域，
+snapshot 的 `margins` 表示已应用值。关闭后的设置返回 `SessionClosed`。
+Demo 提供上/右/下/左输入和“应用边距”，拒绝负数、非整数及超出 u32 的输入，
+错误时保留上一份配置；新附着继承已提交配置，普通窗口预览不参与宿主边距计算。
+
+
 以下均为拟新增接口；省略 import、泛型 lifetime 和具体错误实现，不是现成可编译代码。实施时可调整 Rust 泛型细节，必须保留这些语义：
 
 ```rust
@@ -127,6 +139,7 @@ pub enum InputMode { Passthrough, Interactive }
 pub struct OverlayOptions {
     pub owner: AnyWindowHandle, // 本应用普通窗口，非外部宿主
     pub input_mode: InputMode,
+    pub margins: OverlayMargins, // 默认四边为 0 的非负整数逻辑像素
 }
 
 pub fn open_window<V: Render + 'static>(
@@ -149,6 +162,8 @@ impl<V: Render + 'static> OverlayWindow<V> {
     ) -> Subscription;
     pub fn set_input_mode(&self, mode: InputMode, cx: &mut App)
         -> Result<(), OverlayError>;
+    pub fn set_margins(&self, margins: OverlayMargins, cx: &mut App)
+        -> Result<(), OverlayError>;
     pub fn close(&self, cx: &mut App) -> Result<(), OverlayError>;
 }
 ```
@@ -158,7 +173,7 @@ impl<V: Render + 'static> OverlayWindow<V> {
 ```rust
 let overlay = overlay::open_window(
     host,
-    OverlayOptions { owner: window.window_handle(), input_mode: InputMode::Interactive },
+    OverlayOptions { owner: window.window_handle(), input_mode: InputMode::Interactive, margins: OverlayMargins::default() },
     |window, cx| cx.new(|cx| BusinessPanel::new(window, cx)),
     cx,
 )?;

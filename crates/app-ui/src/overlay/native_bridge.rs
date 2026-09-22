@@ -12,7 +12,7 @@ pub(super) use overlay_win32::ChangeSignal;
 pub(super) use overlay_win32::HostSnapshot;
 pub use overlay_win32::{
     ErrorKind, HiddenReason, HostInfo, HostList, HostWindowId, InputMode, OverlayError,
-    PhysicalRect, RawHostHandle,
+    OverlayMargins, PhysicalRect, RawHostHandle,
 };
 
 pub(super) fn failure(kind: ErrorKind, message: &str) -> OverlayError {
@@ -112,11 +112,12 @@ impl WindowBinding {
         &mut self,
         host: HostWindowId,
         sequence: u64,
+        margins: OverlayMargins,
     ) -> Result<HostSnapshot, OverlayError> {
         match self {
             Self::Native(native) => {
                 native
-                    .apply_host(host, sequence)
+                    .apply_host(host, sequence, margins)
                     .map_err(|error| OverlayError {
                         kind: ErrorKind::TrackingFailed,
                         native_code: Some(error.code().0),
@@ -125,7 +126,7 @@ impl WindowBinding {
             }
             #[cfg(test)]
             Self::Simulated(backend) => {
-                let sample = backend.applied(host, sequence);
+                let sample = backend.applied(host, sequence).with_margins(margins);
                 backend.hidden.store(
                     sample.visibility_reason.is_some(),
                     std::sync::atomic::Ordering::SeqCst,
@@ -290,6 +291,7 @@ pub(crate) mod testing {
                     right: -100,
                     bottom: 400,
                 },
+                physical_overlay_rect: PhysicalRect::default(),
                 visibility_reason: None,
                 dpi: 144,
                 terminal: None,

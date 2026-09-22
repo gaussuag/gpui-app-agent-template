@@ -5,6 +5,20 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+User-requested margins extension is implemented: `OverlayOptions.margins` and
+`OverlayWindow::set_margins` accept top/right/bottom/left whole logical pixels.
+Defaults remain zero; the host DPI determines physical insets. The Demo has four
+inputs and an Apply button. Empty remaining space hides without destroying content.
+The host client rectangle remains separately observable from the overlay viewport.
+
+Verification: margin arithmetic covers 100%/150%/200%, signed origins and overflow;
+32 app-ui tests pass, including event-free live updates, empty/recovery, DPI and
+Demo validation. The native `-Suite margins` passed real caption dragging and
+border resizing on a controlled client-drawn host in both HUD and Interactive;
+resources return to zero. Strict Clippy and both review axes pass. User manual
+acceptance of this new feature is pending; prior acceptance below predates it.
+Unified repository/generated regression remains deferred at the user's request.
+
 Runtime DPI switching is fixed and manually accepted: with Overlay attached to
 Settings, the user changed 100% → 150% → 100% without dragging; Overlay adapted
 automatically. See [DPI evidence](overlay-dpi-evidence.md) for diagnosis and the

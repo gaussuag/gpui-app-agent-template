@@ -1,4 +1,6 @@
 //! Native overlay adapter. All Windows knowledge lives in `windows`.
+mod margins;
+pub use margins::OverlayMargins;
 mod signal;
 pub use signal::ChangeSignal;
 #[cfg(not(windows))]
@@ -131,6 +133,7 @@ pub enum HiddenReason {
     Invisible,
     Cloaked,
     EmptyClient,
+    EmptyViewport,
 }
 
 /// Platform facts; the consumer never reconstructs Win32 visibility rules.
@@ -140,6 +143,7 @@ pub struct HostSnapshot {
     pub generation: u64,
     pub sequence: u64,
     pub physical_client_rect: PhysicalRect,
+    pub physical_overlay_rect: PhysicalRect,
     pub visibility_reason: Option<HiddenReason>,
     pub dpi: u32,
     pub terminal: Option<OverlayError>,

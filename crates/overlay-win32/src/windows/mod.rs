@@ -30,6 +30,7 @@ mod fallback;
 mod fixture;
 mod geometry;
 mod host;
+mod margins_test;
 mod watch;
 use crate::InputMode;
 #[cfg(feature = "test-support")]
@@ -45,6 +46,7 @@ pub struct WindowBinding {
     original_style: isize,
     callback: Rc<BindingState>,
     last: Option<crate::HostSnapshot>,
+    last_margins: crate::OverlayMargins,
     initialized: bool,
     poisoned: bool,
     _thread: PhantomData<Rc<()>>,
@@ -99,6 +101,7 @@ impl WindowBinding {
         &mut self,
         host: crate::HostWindowId,
         sequence: u64,
+        margins: crate::OverlayMargins,
     ) -> Result<crate::HostSnapshot, Error> {
         if !self.usable() {
             return Err(Error::from_hresult(E_HANDLE));
@@ -107,12 +110,15 @@ impl WindowBinding {
             if last.generation != host.generation() {
                 return Err(Error::from_hresult(E_INVALIDARG));
             }
-            if last.terminal.is_some() || sequence <= last.sequence {
+            if last.terminal.is_some()
+                || sequence < last.sequence
+                || (sequence == last.sequence && self.last_margins == margins)
+            {
                 return Ok(last.clone());
             }
         }
         let _dpi = host::DpiScope::enter();
-        let state = host::sample(host, Some(self.hwnd), sequence);
+        let state = host::sample(host, Some(self.hwnd), sequence).with_margins(margins);
         // SAFETY: only this binding's own window is moved. Sampling and apply
         // execute on its creating thread, outside borrowed GPUI contexts.
         unsafe {
@@ -121,7 +127,7 @@ impl WindowBinding {
                     self.hide();
                 }
             } else {
-                let r = state.physical_client_rect;
+                let r = state.physical_overlay_rect;
                 let mut actual = RECT::default();
                 let position_matches = GetWindowRect(self.hwnd, &mut actual).is_ok()
                     && (actual.left, actual.top, actual.right, actual.bottom)
@@ -160,6 +166,7 @@ impl WindowBinding {
                 );
             }
         }
+        self.last_margins = margins;
         self.last = Some(state.clone());
         Ok(state)
     }
@@ -203,6 +210,7 @@ impl WindowBinding {
                     callback
                 },
                 last: None,
+                last_margins: crate::OverlayMargins::default(),
                 initialized: false,
                 poisoned: false,
                 _thread: PhantomData,

@@ -104,6 +104,7 @@ async fn exercise(
     let interactive = std::env::args().any(|arg| arg == "--interactive");
     let ime = std::env::args().any(|arg| arg == "--ime");
     let components = std::env::args().any(|arg| arg == "--components");
+    let margins_probe = std::env::args().any(|arg| arg == "--margins");
     let dpi_probe = std::env::args().any(|arg| arg == "--dpi");
     let close_case = std::env::args().find(|arg| {
         matches!(
@@ -125,6 +126,16 @@ async fn exercise(
                 open_window(
                     host,
                     OverlayOptions {
+                        margins: if margins_probe {
+                            OverlayMargins {
+                                top: 48,
+                                right: 8,
+                                bottom: 8,
+                                left: 8,
+                            }
+                        } else {
+                            OverlayMargins::default()
+                        },
                         owner,
                         input_mode: mode,
                     },
@@ -182,7 +193,10 @@ async fn exercise(
             #[cfg(not(all(windows, feature = "test-support")))]
             return Err("DPI probe requires Windows test-support".into());
         }
-        if !stress && !dpi_probe && close_case.is_none() {
+        if margins_probe {
+            cx.background_executor().timer(Duration::from_secs(7)).await;
+        }
+        if !stress && !dpi_probe && !margins_probe && close_case.is_none() {
             let painted = Rc::new(Cell::new(false));
             let frame = painted.clone();
             cx.update(|cx| {

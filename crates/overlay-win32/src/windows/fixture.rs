@@ -10,6 +10,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
+static CUSTOM_CHROME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static CLICKS: AtomicUsize = AtomicUsize::new(0);
 static WHEELS: AtomicUsize = AtomicUsize::new(0);
 
@@ -18,6 +19,29 @@ static WHEELS: AtomicUsize = AtomicUsize::new(0);
 unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
         match msg {
+            WM_NCCALCSIZE if CUSTOM_CHROME.load(Ordering::Relaxed) => LRESULT(0),
+            WM_NCHITTEST if CUSTOM_CHROME.load(Ordering::Relaxed) => {
+                let mut rect = RECT::default();
+                let _ = GetWindowRect(hwnd, &mut rect);
+                let x = (lp.0 as u16 as i16) as i32;
+                let y = ((lp.0 >> 16) as u16 as i16) as i32;
+                let dpi = GetDpiForWindow(hwnd) as i32;
+                let edge = 6 * dpi / 96;
+                LRESULT(if x >= rect.right - edge {
+                    HTRIGHT
+                } else if x < rect.left + edge {
+                    HTLEFT
+                } else if y < rect.top + edge {
+                    HTTOP
+                } else if y >= rect.bottom - edge {
+                    HTBOTTOM
+                } else if y < rect.top + 40 * dpi / 96 {
+                    HTCAPTION
+                } else {
+                    HTCLIENT
+                } as isize)
+            }
+
             WM_PAINT => {
                 let mut ps = PAINTSTRUCT::default();
                 let dc = BeginPaint(hwnd, &mut ps);
@@ -67,11 +91,17 @@ pub fn run_fixture() -> Result<(), ::windows::core::Error> {
         if RegisterClassW(&wc) == 0 {
             return Err(::windows::core::Error::from_win32());
         }
+        let custom = std::env::args().any(|arg| arg == "--margins");
+        CUSTOM_CHROME.store(custom, Ordering::Relaxed);
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class,
             w!("Overlay controlled external host"),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            if custom {
+                WS_POPUP | WS_THICKFRAME | WS_VISIBLE
+            } else {
+                WS_OVERLAPPEDWINDOW | WS_VISIBLE
+            },
             80,
             80,
             820,
@@ -128,6 +158,7 @@ fn drive_probe(target: usize) -> bool {
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
     let fallback = std::env::args().any(|arg| arg == "--fallback");
+    let margins_probe = std::env::args().any(|arg| arg == "--margins");
     let dpi_probe = std::env::args().any(|arg| arg == "--dpi");
     let close_case = std::env::args().find(|arg| {
         matches!(
@@ -140,6 +171,9 @@ fn drive_probe(target: usize) -> bool {
     command.env("OVERLAY_PROBE_HOST", target.to_string());
     if fallback {
         command.env("OVERLAY_PROBE_DROP_EVENTS", "1");
+    }
+    if margins_probe {
+        command.arg("--margins");
     }
     if dpi_probe {
         command.arg("--dpi");
@@ -237,6 +271,7 @@ fn drive_probe(target: usize) -> bool {
         && !fallback
         && !dpi_probe
         && close_case.is_none()
+        && !margins_probe
         && let Err(error) = exercise_input(
             HWND(target as *mut _),
             child.id(),
@@ -256,7 +291,7 @@ fn drive_probe(target: usize) -> bool {
         );
         passed = false;
     }
-    if geometry || fallback {
+    if geometry || fallback || margins_probe {
         // SAFETY: enumerate candidates only in the child started by this fixture.
         let mut owned = (child.id(), Vec::<HWND>::new());
         unsafe {
@@ -265,7 +300,9 @@ fn drive_probe(target: usize) -> bool {
                 LPARAM((&mut owned as *mut (u32, Vec<HWND>)) as isize),
             );
         }
-        let result = if fallback {
+        let result = if margins_probe {
+            super::margins_test::run(HWND(target as *mut _), child.id(), &owned.1)
+        } else if fallback {
             super::fallback::run(HWND(target as *mut _), &owned.1)
         } else {
             super::geometry::run(HWND(target as *mut _), &owned.1)
@@ -348,6 +385,9 @@ fn exercise_input(
                 "environment: controlled host could not obtain foreground; interactive desktop required".into(),
             );
         }
+    }
+    if !preview {
+        verify_native_frame_routing(host)?;
     }
     capture(
         host,
@@ -596,6 +636,61 @@ fn exercise_input(
         );
     }
     println!("PROBE_REAL_INPUT_OK");
+    Ok(())
+}
+
+/// Verify system non-client points are still owned by the controlled host.
+fn verify_native_frame_routing(host: HWND) -> Result<(), String> {
+    // SAFETY: only queries our fixture; no messages or input target user windows.
+    unsafe {
+        let mut outer = RECT::default();
+        let mut client = POINT::default();
+        GetWindowRect(host, &mut outer).map_err(|error| error.to_string())?;
+        if !ClientToScreen(host, &mut client).as_bool() {
+            return Err("fixture client mapping failed".into());
+        }
+        let x = (outer.left + outer.right) / 2;
+        let y = (outer.top + outer.bottom) / 2;
+        for (label, point) in [
+            (
+                "caption",
+                POINT {
+                    x,
+                    y: (outer.top + client.y) / 2,
+                },
+            ),
+            ("left", POINT { x: client.x - 1, y }),
+            (
+                "right",
+                POINT {
+                    x: outer.right - (client.x - outer.left),
+                    y,
+                },
+            ),
+            (
+                "top",
+                POINT {
+                    x,
+                    y: outer.top + 1,
+                },
+            ),
+            (
+                "bottom",
+                POINT {
+                    x,
+                    y: outer.bottom - 1,
+                },
+            ),
+        ] {
+            let hit = WindowFromPoint(point);
+            if hit != host {
+                return Err(format!(
+                    "native frame {label} blocked: target={hit:?}, host={host:?}"
+                ));
+            }
+        }
+    }
+    println!("PROBE_NATIVE_FRAME_ROUTING_OK");
     Ok(())
 }
 

@@ -49,7 +49,12 @@ impl WindowBinding {
     pub fn set_mode(&mut self, _: InputMode) -> Result<(), NativeError> {
         Err(NativeError)
     }
-    pub fn apply_host(&mut self, _: HostWindowId, _: u64) -> Result<HostSnapshot, NativeError> {
+    pub fn apply_host(
+        &mut self,
+        _: HostWindowId,
+        _: u64,
+        _: OverlayMargins,
+    ) -> Result<HostSnapshot, NativeError> {
         Err(NativeError)
     }
     pub fn return_focus(&self, _: HostWindowId) -> Result<(), NativeError> {

@@ -16,6 +16,10 @@ pub struct OverlaySnapshot {
     pub host: HostWindowId,
     pub input_mode: InputMode,
     pub physical_client_rect: Option<PhysicalRect>,
+    /// Actual inset overlay viewport, in screen physical pixels.
+    pub physical_overlay_rect: Option<PhysicalRect>,
+    /// Last applied margins; requests are committed asynchronously.
+    pub margins: super::OverlayMargins,
     pub hidden_reason: Option<HiddenReason>,
     pub error: Option<OverlayError>,
     /// Number of committed geometry/visibility changes, including initial state.
@@ -40,6 +44,7 @@ pub struct OverlayEvent {
 }
 
 pub struct OverlayOptions {
+    pub margins: super::OverlayMargins,
     pub owner: gpui_kit::AnyWindowHandle,
     pub input_mode: InputMode,
 }

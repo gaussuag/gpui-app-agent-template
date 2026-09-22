@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components", "dpi")]
+    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components", "dpi", "margins")]
     [string]$Suite = "all"
 )
 
@@ -44,6 +44,7 @@ function Invoke-OverlayProbe {
         if ($stderr) { Write-Host $stderr }
         $inputVerified = $Mode -in @("--stress", "--host-exit", "--owner-close", "--external-close") -or $stdout.Contains("PROBE_REAL_INPUT_OK")
         if ($Mode -eq "--geometry") { $inputVerified = $stdout.Contains("PROBE_GEOMETRY_OK") }
+        if ($Mode.Contains("--margins")) { $inputVerified = $stdout.Contains("PROBE_MARGINS_OK") }
         if ($Mode -eq "--dpi") { $inputVerified = $stdout.Contains("PROBE_DPI_OK") }
         if ($Mode -eq "--fallback") {
             $inputVerified = $stdout.Contains("PROBE_FALLBACK_OK") -and $stdout -match 'OVERLAY_DROPPED_EVENTS=[1-9][0-9]*'
@@ -65,6 +66,11 @@ try {
     $examples = Join-Path $desktopTarget.TargetDirectory "$targetTriple\debug\examples"
     $fixture = Join-Path $examples "fixture.exe"
     $probe = Join-Path $examples "overlay-probe.exe"
+    if ($Suite -in @("all", "margins")) {
+        foreach ($mode in @("--margins", "--margins --interactive")) {
+            Invoke-OverlayProbe -Mode $mode -Marker "PROBE_MARGINS_OK" -TimeoutSeconds 15
+        }
+    }
     if ($Suite -in @("all", "dpi")) {
         Invoke-OverlayProbe -Mode "--dpi" -Marker "PROBE_DPI_OK" -TimeoutSeconds 15
     }

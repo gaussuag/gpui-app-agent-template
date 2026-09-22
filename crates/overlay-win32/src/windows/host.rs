@@ -131,6 +131,7 @@ pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> 
         generation: id.generation,
         sequence,
         physical_client_rect: PhysicalRect::default(),
+        physical_overlay_rect: PhysicalRect::default(),
         visibility_reason: None,
         dpi: 96,
         terminal: None,
@@ -175,6 +176,7 @@ pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> 
             right: last.x,
             bottom: last.y,
         };
+        snapshot.physical_overlay_rect = snapshot.physical_client_rect;
         snapshot.dpi = GetDpiForWindow(hwnd);
         let foreground = GetForegroundWindow();
         snapshot.visibility_reason = if IsIconic(hwnd).as_bool() {

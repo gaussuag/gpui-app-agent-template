@@ -128,6 +128,7 @@ fn hide_show_and_mode_changes_keep_the_original_business_entity(cx: &mut TestApp
             open_window(
                 host,
                 OverlayOptions {
+                    margins: Default::default(),
                     owner: owner.into(),
                     input_mode: InputMode::Interactive,
                 },
@@ -245,6 +246,7 @@ fn open(
         open_window(
             host,
             OverlayOptions {
+                margins: Default::default(),
                 owner: owner.into(),
                 input_mode: InputMode::Interactive,
             },
@@ -427,6 +429,7 @@ fn duplicate_attach_and_overlay_owner_are_rejected(cx: &mut TestAppContext) {
         open_window(
             host,
             OverlayOptions {
+                margins: Default::default(),
                 owner: owner.into(),
                 input_mode: InputMode::Interactive,
             },
@@ -446,6 +449,7 @@ fn duplicate_attach_and_overlay_owner_are_rejected(cx: &mut TestAppContext) {
         open_window(
             HostWindowId::fixture(43),
             OverlayOptions {
+                margins: Default::default(),
                 owner: child_owner,
                 input_mode: InputMode::Interactive,
             },
@@ -526,6 +530,7 @@ fn composition_cancel_does_not_also_leave_interactive_mode(cx: &mut TestAppConte
             open_window(
                 host,
                 OverlayOptions {
+                    margins: Default::default(),
                     owner: owner.into(),
                     input_mode: InputMode::Interactive,
                 },
@@ -575,4 +580,75 @@ fn composition_cancel_does_not_also_leave_interactive_mode(cx: &mut TestAppConte
     );
     assert!(cx.update(|cx| overlay.close(cx)).is_ok());
     tick(cx);
+}
+
+#[gpui_kit::test]
+fn margins_apply_without_host_events_preserve_content_and_recover_empty(cx: &mut TestAppContext) {
+    let (owner, host, backend) = setup(cx);
+    let overlay = open(cx, owner, host);
+    tick(cx);
+    let identity = cx
+        .update(|cx| overlay.content(cx))
+        .unwrap_or_else(|e| panic!("{e}"))
+        .entity_id();
+    let margins = OverlayMargins {
+        top: 40,
+        right: 8,
+        bottom: 6,
+        left: 4,
+    };
+    for desired in [
+        margins,
+        OverlayMargins {
+            top: u32::MAX,
+            ..margins
+        },
+        OverlayMargins::default(),
+    ] {
+        cx.update(|cx| overlay.set_margins(desired, cx))
+            .unwrap_or_else(|e| panic!("{e}"));
+        cx.run_until_parked(); // no host event or polling clock needed
+        let state = cx
+            .update(|cx| overlay.snapshot(cx))
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(state.margins, desired);
+        let raw = backend.sample(host, 1).physical_client_rect;
+        assert_eq!(state.physical_client_rect, Some(raw));
+        assert_eq!(state.physical_overlay_rect, Some(desired.inset(raw, 144)));
+        assert_eq!(
+            state.hidden_reason,
+            if desired.top == u32::MAX {
+                Some(HiddenReason::EmptyViewport)
+            } else {
+                None
+            }
+        );
+        assert_eq!(
+            cx.update(|cx| overlay.content(cx))
+                .unwrap_or_else(|e| panic!("{e}"))
+                .entity_id(),
+            identity
+        );
+    }
+    cx.update(|cx| overlay.set_margins(margins, cx))
+        .unwrap_or_else(|e| panic!("{e}"));
+    let mut sample = backend.sample(host, 2);
+    sample.dpi = 192;
+    backend.submit(sample.clone());
+    tick(cx);
+    assert_eq!(
+        cx.update(|cx| overlay.snapshot(cx))
+            .unwrap_or_else(|e| panic!("{e}"))
+            .physical_overlay_rect,
+        Some(margins.inset(sample.physical_client_rect, 192))
+    );
+    cx.update(|cx| overlay.close(cx))
+        .unwrap_or_else(|e| panic!("{e}"));
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|cx| overlay.set_margins(margins, cx))
+            .err()
+            .map(|e| e.kind),
+        Some(ErrorKind::SessionClosed)
+    );
 }

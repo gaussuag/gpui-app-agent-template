@@ -69,10 +69,10 @@ impl Render for DemoContent {
         let geometry = self
             .snapshot
             .as_ref()
-            .and_then(|state| state.physical_client_rect)
+            .and_then(|state| state.physical_overlay_rect)
             .map(|rect| {
                 format!(
-                    "客户区 {} × {} px · ({}, {})",
+                    "Overlay 区域 {} × {} px · ({}, {})",
                     rect.width(),
                     rect.height(),
                     rect.left,

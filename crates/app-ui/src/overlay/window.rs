@@ -62,6 +62,19 @@ impl<V: Render + 'static> OverlayWindow<V> {
         self.session
             .update(cx, |state, cx| state.request_mode(mode, cx))
     }
+    /// Schedule a viewport update without rebuilding the content entity.
+    pub fn set_margins(&self, margins: OverlayMargins, cx: &mut App) -> Result<(), OverlayError> {
+        self.session.update(cx, |state, _| {
+            if !runtime::is_open(&state.snapshot.phase) {
+                return Err(session::closed());
+            }
+            if state.desired_margins != margins {
+                state.desired_margins = margins;
+                state.changed.notify();
+            }
+            Ok(())
+        })
+    }
     pub fn close(&self, cx: &mut App) -> Result<(), OverlayError> {
         self.session.update(cx, |state, cx| state.request_close(cx));
         Ok(())
@@ -110,6 +123,8 @@ pub fn open_window<V: Render + 'static>(
             host,
             input_mode: options.input_mode,
             physical_client_rect: None,
+            physical_overlay_rect: None,
+            margins: options.margins,
             hidden_reason: None,
             error: None,
             native_updates: 0,
@@ -118,6 +133,7 @@ pub fn open_window<V: Render + 'static>(
         owner: options.owner,
         window: None,
         desired_mode: options.input_mode,
+        desired_margins: options.margins,
         mode_revision: 0,
         task: None,
         changed: ChangeSignal::default(),
