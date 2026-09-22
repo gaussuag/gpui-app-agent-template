@@ -128,7 +128,9 @@ async fn exercise(
                         owner,
                         input_mode: mode,
                     },
-                    move |window, cx| cx.new(|cx| DemoContent::new(mode, window, cx)),
+                    move |window, cx| {
+                        cx.new(|cx| DemoContent::new(mode, window, cx).with_corner_markers(true))
+                    },
                     cx,
                 )
             })
@@ -442,7 +444,10 @@ async fn exercise_preview(cx: &mut AsyncApp) -> Result<(), String> {
                     ..WindowOptions::default()
                 },
                 |window, cx| {
-                    let view = cx.new(|cx| DemoContent::new(InputMode::Interactive, window, cx));
+                    let view = cx.new(|cx| {
+                        DemoContent::new(InputMode::Interactive, window, cx)
+                            .with_corner_markers(true)
+                    });
                     content = Some(view.clone());
                     let surface = cx.new(|_| PreviewSurface(view));
                     cx.new(|cx| Root::new(surface, window, cx))

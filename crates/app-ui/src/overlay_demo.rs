@@ -27,6 +27,7 @@ actions!(
         AttachSelected,
         DetachHost,
         ToggleMode,
+        ToggleCornerMarkers,
         PreviewContent,
         SelectNext,
         SelectPrevious
@@ -57,6 +58,7 @@ pub(crate) struct OverlayDemo {
     pending_host: Option<HostWindowId>,
     requested_mode: Option<InputMode>,
     error: Option<String>,
+    corner_markers: bool,
 }
 
 impl OverlayDemo {
@@ -93,6 +95,7 @@ impl OverlayDemo {
             pending_host: None,
             requested_mode: None,
             error: None,
+            corner_markers: false,
         };
         view.refresh(cx);
         view
@@ -191,13 +194,19 @@ impl OverlayDemo {
     }
     fn attach(&mut self, host: HostWindowId, cx: &mut Context<Self>) {
         self.error = None;
+        let markers = self.corner_markers;
         let opened = overlay::open_window(
             host,
             OverlayOptions {
                 owner: self.owner,
                 input_mode: InputMode::Passthrough,
             },
-            |window, cx| cx.new(|cx| DemoContent::new(InputMode::Passthrough, window, cx)),
+            move |window, cx| {
+                cx.new(|cx| {
+                    DemoContent::new(InputMode::Passthrough, window, cx)
+                        .with_corner_markers(markers)
+                })
+            },
             cx,
         );
         match opened {
@@ -276,10 +285,24 @@ impl OverlayDemo {
         }
         cx.notify();
     }
+    fn toggle_corner_markers(&mut self, cx: &mut Context<Self>) {
+        self.corner_markers = !self.corner_markers;
+        if let Some(active) = &self.active
+            && let Err(error) = active.update(cx, |content, _, cx| {
+                content.set_corner_markers(self.corner_markers, cx);
+            })
+        {
+            self.error = Some(error.to_string());
+        }
+        cx.notify();
+    }
     fn preview(&mut self, cx: &mut Context<Self>) {
         let opened = cx.open_window(gpui_kit::WindowOptions::default(), |window, cx| {
             window.set_window_title("相同内容 · 普通 Kit 窗口");
-            let content = cx.new(|cx| DemoContent::new(InputMode::Interactive, window, cx));
+            let content = cx.new(|cx| {
+                DemoContent::new(InputMode::Interactive, window, cx)
+                    .with_corner_markers(self.corner_markers)
+            });
             let surface = cx.new(|_| PreviewSurface(content));
             cx.new(|cx| Root::new(surface, window, cx))
         });
@@ -330,6 +353,9 @@ impl Render for OverlayDemo {
             .on_action(cx.listener(|view, _: &AttachSelected, _, cx| view.attach_selected(cx)))
             .on_action(cx.listener(|view, _: &DetachHost, _, cx| view.detach(cx)))
             .on_action(cx.listener(|view, _: &ToggleMode, _, cx| view.toggle_mode(cx)))
+            .on_action(
+                cx.listener(|view, _: &ToggleCornerMarkers, _, cx| view.toggle_corner_markers(cx)),
+            )
             .on_action(cx.listener(|view, _: &PreviewContent, _, cx| view.preview(cx)))
             .on_action(cx.listener(|view, _: &SelectNext, _, cx| view.move_selection(1, cx)))
             .on_action(cx.listener(|view, _: &SelectPrevious, _, cx| view.move_selection(-1, cx)))
@@ -438,6 +464,17 @@ impl Render for OverlayDemo {
                                 window.dispatch_action(Box::new(PreviewContent), cx)
                             }),
                     ),
+            )
+            .child(
+                Button::new("overlay-corner-markers")
+                    .label(if self.corner_markers {
+                        "四角定位标记：开"
+                    } else {
+                        "四角定位标记：关"
+                    })
+                    .on_click(|_, window, cx| {
+                        window.dispatch_action(Box::new(ToggleCornerMarkers), cx)
+                    }),
             )
             .child(div().text_sm().child(status))
             .when_some(self.error.clone(), |view, error| {
@@ -704,6 +741,53 @@ mod tests {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             div()
         }
+    }
+
+    #[gpui_kit::test]
+    fn marker_option_updates_attached_content_and_survives_reattach(cx: &mut TestAppContext) {
+        let (view, cx, _) = setup(cx);
+        assert!(!view.read_with(cx, |view, _| view.corner_markers));
+        cx.dispatch_action(SelectNext);
+        cx.dispatch_action(AttachSelected);
+        tick(cx);
+        let content = view.read_with(cx, |view, app| {
+            view.active
+                .as_ref()
+                .unwrap_or_else(|| panic!("missing overlay"))
+                .content(app)
+                .unwrap_or_else(|error| panic!("{error}"))
+        });
+        assert!(!content.read_with(cx, |content, _| content.corner_markers));
+        cx.update(|window, app| window.click("overlay-corner-markers", app));
+        assert!(content.read_with(cx, |content, _| content.corner_markers));
+        // Changing diagnostic decoration must retain the active content entity.
+        assert_eq!(
+            content.entity_id(),
+            view.read_with(cx, |view, app| {
+                view.active
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("missing overlay"))
+                    .content(app)
+                    .unwrap_or_else(|error| panic!("{error}"))
+                    .entity_id()
+            })
+        );
+        cx.dispatch_action(DetachHost);
+        tick(cx);
+        cx.dispatch_action(AttachSelected);
+        tick(cx);
+        let replacement = view.read_with(cx, |view, app| {
+            view.active
+                .as_ref()
+                .unwrap_or_else(|| panic!("missing overlay"))
+                .content(app)
+                .unwrap_or_else(|error| panic!("{error}"))
+        });
+        assert!(replacement.read_with(cx, |content, _| content.corner_markers));
+        cx.update(|window, app| window.click("overlay-corner-markers", app));
+        assert!(!replacement.read_with(cx, |content, _| content.corner_markers));
+        cx.dispatch_action(DetachHost);
+        tick(cx);
     }
 
     #[gpui_kit::test]

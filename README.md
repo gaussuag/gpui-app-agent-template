@@ -74,6 +74,13 @@ and `--smoke-test` cannot be combined. See the
 [overlay contract](docs/overlay-gpui-spec.md) and
 [current verification record](docs/overlay-implementation-progress.md).
 
+The `--overlay-demo` control window has a “四角定位标记：开 / 关” option,
+off by default. It updates attached demo content without reattaching; the
+selection is retained when switching hosts and used for newly opened previews.
+Existing preview windows keep their initial setting. Automated probes explicitly
+enable markers. Markers belong to `DemoContent`, not `OverlayOptions`: applications
+supplying their own content to `overlay::open_window` receive no corner decoration.
+
 ## Verify
 
 ```powershell

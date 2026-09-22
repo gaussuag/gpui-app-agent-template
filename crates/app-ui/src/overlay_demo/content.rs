@@ -27,6 +27,7 @@ pub(crate) struct DemoContent {
     pub(crate) count: usize,
     pub(crate) input: Entity<InputState>,
     enabled: bool,
+    pub(crate) corner_markers: bool,
     mode: InputMode,
     snapshot: Option<OverlaySnapshot>,
     updates: u64,
@@ -40,10 +41,20 @@ impl DemoContent {
             count: 0,
             input: cx.new(|cx| InputState::new(window, cx).placeholder("输入文字 / Chinese IME")),
             enabled: true,
+            corner_markers: false,
             mode,
             snapshot: None,
             updates: 0,
         }
+    }
+    /// Demo-only diagnostic decoration; ordinary content starts without markers.
+    pub(crate) fn with_corner_markers(mut self, enabled: bool) -> Self {
+        self.corner_markers = enabled;
+        self
+    }
+    pub(crate) fn set_corner_markers(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        self.corner_markers = enabled;
+        cx.notify();
     }
     pub(crate) fn apply(&mut self, snapshot: OverlaySnapshot, cx: &mut Context<Self>) {
         self.mode = snapshot.input_mode;
@@ -195,10 +206,12 @@ impl Render for DemoContent {
             .on_action(|_: &ShowNotification, window, cx| {
                 window.push_notification("普通 Kit 通知", cx)
             })
-            .child(corner().top_0().left_0())
-            .child(corner().top_0().right_0())
-            .child(corner().bottom_0().left_0())
-            .child(corner().bottom_0().right_0())
+            .when(self.corner_markers, |view| {
+                view.child(corner().top_0().left_0())
+                    .child(corner().top_0().right_0())
+                    .child(corner().bottom_0().left_0())
+                    .child(corner().bottom_0().right_0())
+            })
             .child(div().p_5().size_full().overflow_hidden().child(panel))
     }
 }
