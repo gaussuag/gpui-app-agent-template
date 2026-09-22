@@ -5,7 +5,9 @@ pub(super) struct Surface<V: Render + 'static> {
     pub content: Entity<V>,
     pub session: gpui_kit::WeakEntity<super::session::Session>,
     pub focus: gpui_kit::FocusHandle,
-    pub escape_was_composing: bool,
+    // Kit may close a sheet and still bubble Cancel. Remember the state
+    // before component handlers run so that one Escape has only one effect.
+    pub escape_had_transient: bool,
 }
 impl<V: Render + 'static> Render for Surface<V> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -17,12 +19,14 @@ impl<V: Render + 'static> Render for Surface<V> {
             .track_focus(&self.focus)
             .capture_action(cx.listener(
                 |surface, _: &gpui_kit::component::input::Escape, window, cx| {
-                    surface.escape_was_composing = focused_composition(window, cx, false);
+                    surface.escape_had_transient = window.has_active_sheet(cx)
+                        || window.has_active_dialog(cx)
+                        || focused_composition(window, cx, false);
                 },
             ))
             .on_action(
                 cx.listener(|surface, _: &gpui_kit::component::input::Escape, _, cx| {
-                    if std::mem::take(&mut surface.escape_was_composing) {
+                    if std::mem::take(&mut surface.escape_had_transient) {
                         return;
                     }
                     let _ = surface.session.update(cx, |session, cx| {
@@ -32,12 +36,14 @@ impl<V: Render + 'static> Render for Surface<V> {
             )
             .capture_action(cx.listener(
                 |surface, _: &gpui_kit::component::dialog::Cancel, window, cx| {
-                    surface.escape_was_composing = focused_composition(window, cx, false);
+                    surface.escape_had_transient = window.has_active_sheet(cx)
+                        || window.has_active_dialog(cx)
+                        || focused_composition(window, cx, false);
                 },
             ))
             .on_action(
                 cx.listener(|surface, _: &gpui_kit::component::dialog::Cancel, _, cx| {
-                    if std::mem::take(&mut surface.escape_was_composing) {
+                    if std::mem::take(&mut surface.escape_had_transient) {
                         return;
                     }
                     let _ = surface.session.update(cx, |session, cx| {

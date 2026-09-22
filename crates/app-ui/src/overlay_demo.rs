@@ -471,7 +471,7 @@ mod tests {
     use super::*;
     use crate::overlay::{HostList, testing::Backend};
     use gpui_kit::component::WindowExt as _;
-    use gpui_kit::{TestAppContext, VisualTestContext, test::TestWindowExt as _};
+    use gpui_kit::{Focusable as _, TestAppContext, VisualTestContext, test::TestWindowExt as _};
 
     fn setup(cx: &mut TestAppContext) -> (Entity<OverlayDemo>, &mut VisualTestContext, Backend) {
         crate::test_support::init_test_app(cx);
@@ -575,6 +575,29 @@ mod tests {
             );
             window
                 .update(cx, |_, window, cx| {
+                    let focus = content.read(cx).input.read(cx).focus_handle(cx);
+                    assert!(focus.is_focused(window));
+                    window.press("tab", cx);
+                    assert!(!focus.is_focused(window));
+                    window.press("shift-tab", cx);
+                    assert!(focus.is_focused(window));
+                    window.press("ctrl-a", cx);
+                    window.press("ctrl-c", cx);
+                    assert_eq!(
+                        cx.read_from_clipboard().and_then(|item| item.text()),
+                        Some("shared text".into())
+                    );
+                    window.press("backspace", cx);
+                    assert!(content.read(cx).input.read(cx).value().is_empty());
+                    window.press("ctrl-v", cx);
+                    assert_eq!(
+                        content.read(cx).input.read(cx).value().as_ref(),
+                        "shared text"
+                    );
+                })
+                .unwrap_or_else(|error| panic!("{error}"));
+            window
+                .update(cx, |_, window, cx| {
                     window.click("overlay-dialog", cx);
                 })
                 .unwrap_or_else(|error| panic!("{error}"));
@@ -589,6 +612,50 @@ mod tests {
             window
                 .update(cx, |_, window, cx| assert!(!window.has_active_dialog(cx)))
                 .unwrap_or_else(|error| panic!("{error}"));
+            window
+                .update(cx, |_, window, cx| window.click("overlay-sheet", cx))
+                .unwrap_or_else(|error| panic!("{error}"));
+            cx.run_until_parked();
+            window
+                .update(cx, |_, window, cx| {
+                    assert!(window.has_active_sheet(cx));
+                    window.press("escape", cx);
+                })
+                .unwrap_or_else(|error| panic!("{error}"));
+            cx.run_until_parked();
+            window
+                .update(cx, |_, window, cx| {
+                    assert!(!window.has_active_sheet(cx));
+                })
+                .unwrap_or_else(|error| panic!("{error}"));
+            if let Some(overlay) = &overlay {
+                assert_eq!(
+                    cx.update(|cx| overlay.snapshot(cx))
+                        .map(|state| state.input_mode)
+                        .ok(),
+                    Some(InputMode::Interactive),
+                    "Escape closing a sheet must not also exit Interactive"
+                );
+            }
+            window
+                .update(cx, |_, window, cx| window.click("overlay-note", cx))
+                .unwrap_or_else(|error| panic!("{error}"));
+            cx.run_until_parked();
+            window
+                .update(cx, |_, window, cx| {
+                    assert_eq!(window.notifications(cx).len(), 1)
+                })
+                .unwrap_or_else(|error| panic!("{error}"));
+            window
+                .update(cx, |_, window, cx| window.click("overlay-menu", cx))
+                .unwrap_or_else(|error| panic!("{error}"));
+            cx.run_until_parked();
+            assert!(cx.update(|cx| gpui_kit::base::GlobalState::is_in_deferred_context(cx)));
+            window
+                .update(cx, |_, window, cx| window.press("escape", cx))
+                .unwrap_or_else(|error| panic!("{error}"));
+            cx.run_until_parked();
+            assert!(!cx.update(|cx| gpui_kit::base::GlobalState::is_in_deferred_context(cx)));
             if let Some(overlay) = overlay {
                 assert_eq!(
                     cx.update(|cx| overlay.snapshot(cx))
@@ -610,6 +677,16 @@ mod tests {
                     .update(cx, |_, window, cx| window.render_frame(cx))
                     .unwrap_or_else(|error| panic!("{error}"));
                 assert!(!cx.update(|cx| gpui_kit::base::GlobalState::is_in_deferred_context(cx)));
+                // Kit clears notifications through its normal 200 ms exit
+                // animation; advance that timer without any wall-clock wait.
+                cx.background_executor
+                    .advance_clock(std::time::Duration::from_millis(250));
+                cx.run_until_parked();
+                window
+                    .update(cx, |_, window, cx| {
+                        assert!(window.notifications(cx).is_empty())
+                    })
+                    .unwrap_or_else(|error| panic!("{error}"));
                 assert!(cx.update(|cx| overlay.close(cx)).is_ok());
             } else {
                 assert!(

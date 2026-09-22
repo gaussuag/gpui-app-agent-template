@@ -142,7 +142,7 @@ pub fn open_window<V: Render + 'static>(
                     content: view,
                     session: session.downgrade(),
                     focus: cx.focus_handle(),
-                    escape_was_composing: false,
+                    escape_had_transient: false,
                 });
                 if window.focused(cx).is_none() {
                     let focus = surface.read(cx).focus.clone();

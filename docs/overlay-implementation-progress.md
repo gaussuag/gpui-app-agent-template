@@ -5,6 +5,24 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+Latest continuation: component comparison exposed and fixed a production bug:
+Sheet's Cancel closes the sheet but propagates, so the same Escape also requested
+HUD mode. A failing test first proved this in overlay while ordinary preview
+worked. Capture now remembers active Sheet/Dialog/composition before component
+handlers run; fallback respects that event's prior state. No business callback,
+dependency change or native call was added. Sheet/menu Escape, notification
+creation and normal animated clearing now pass in the shared-content comparison.
+Tab/Shift+Tab focus traversal and select/copy/delete/paste also pass through
+production keyboard Actions in both containers, using the test platform clipboard.
+These remain headless evidence, not Windows IME or OS clipboard acceptance.
+
+After this fix, strict Clippy and all 38 tests passed. `scripts/check.ps1` passed
+its code/build/product checks, original native smoke, 100 lifecycle cycles
+(22.0 seconds), and all three native close scenarios with resources at zero;
+it then stopped on `PROBE_ABORTED` because the HUD fixture could not obtain
+foreground. Full native input/generated validation remains pending. The two-axis
+review found no actionable Standards or Spec issue in the Sheet fix.
+
 The reusable overlay module, host selector, shared business content and lifecycle
 implementation are committed in `5f59181`. Stage 3 native acceptance is still in
 progress; the goal is not fully accepted. Earlier entries below are historical
