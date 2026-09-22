@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components")]
+    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components", "dpi")]
     [string]$Suite = "all"
 )
 
@@ -44,6 +44,7 @@ function Invoke-OverlayProbe {
         if ($stderr) { Write-Host $stderr }
         $inputVerified = $Mode -in @("--stress", "--host-exit", "--owner-close", "--external-close") -or $stdout.Contains("PROBE_REAL_INPUT_OK")
         if ($Mode -eq "--geometry") { $inputVerified = $stdout.Contains("PROBE_GEOMETRY_OK") }
+        if ($Mode -eq "--dpi") { $inputVerified = $stdout.Contains("PROBE_DPI_OK") }
         if ($Mode -eq "--fallback") {
             $inputVerified = $stdout.Contains("PROBE_FALLBACK_OK") -and $stdout -match 'OVERLAY_DROPPED_EVENTS=[1-9][0-9]*'
         }
@@ -59,11 +60,14 @@ function Invoke-OverlayProbe {
 
 Push-Location $root
 try {
-    & $cargoPath build --locked --target $targetTriple -p app-ui --example overlay-probe -p overlay-win32 --example fixture --features overlay-win32/test-support
+    & $cargoPath build --locked --target $targetTriple -p app-ui --example overlay-probe -p overlay-win32 --example fixture --features app-ui/test-support,overlay-win32/test-support
     if ($LASTEXITCODE -ne 0) { throw "Overlay smoke build failed with exit code $LASTEXITCODE." }
     $examples = Join-Path $desktopTarget.TargetDirectory "$targetTriple\debug\examples"
     $fixture = Join-Path $examples "fixture.exe"
     $probe = Join-Path $examples "overlay-probe.exe"
+    if ($Suite -in @("all", "dpi")) {
+        Invoke-OverlayProbe -Mode "--dpi" -Marker "PROBE_DPI_OK" -TimeoutSeconds 15
+    }
     if ($Suite -in @("all", "lifecycle")) {
         Write-Host "==> overlay 100-cycle lifecycle/resource endurance (60s)"
         Invoke-OverlayProbe -Mode "--stress" -Marker "OVERLAY_NATIVE_STRESS_100_OK" -TimeoutSeconds 60

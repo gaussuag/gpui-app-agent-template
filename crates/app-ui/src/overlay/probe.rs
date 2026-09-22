@@ -104,6 +104,7 @@ async fn exercise(
     let interactive = std::env::args().any(|arg| arg == "--interactive");
     let ime = std::env::args().any(|arg| arg == "--ime");
     let components = std::env::args().any(|arg| arg == "--components");
+    let dpi_probe = std::env::args().any(|arg| arg == "--dpi");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -173,7 +174,13 @@ async fn exercise(
         });
         wait_phase(&overlay, OverlayPhase::Attached, cx).await?;
         let attached = Instant::now();
-        if !stress && close_case.is_none() {
+        if dpi_probe {
+            #[cfg(all(windows, feature = "test-support"))]
+            exercise_dpi(&overlay, cx).await?;
+            #[cfg(not(all(windows, feature = "test-support")))]
+            return Err("DPI probe requires Windows test-support".into());
+        }
+        if !stress && !dpi_probe && close_case.is_none() {
             let painted = Rc::new(Cell::new(false));
             let frame = painted.clone();
             cx.update(|cx| {
@@ -356,6 +363,65 @@ async fn exercise(
             "SMOKE"
         }
     );
+    Ok(())
+}
+
+#[cfg(all(windows, feature = "test-support"))]
+async fn exercise_dpi(
+    overlay: &OverlayWindow<DemoContent>,
+    cx: &mut AsyncApp,
+) -> Result<(), String> {
+    // Let the initial host geometry settle before injecting only the DPI
+    // protocol edge. This does not pretend to change the monitor's real DPI.
+    cx.background_executor()
+        .timer(Duration::from_millis(500))
+        .await;
+    let original = cx
+        .update(|cx| overlay.snapshot(cx))
+        .map_err(|e| e.to_string())?;
+    if original.hidden_reason.is_some() {
+        return Err(
+            "PROBE_ABORTED: DPI probe requires visible controlled host on an unlocked desktop"
+                .into(),
+        );
+    }
+    let rect = original
+        .physical_client_rect
+        .ok_or("Missing host rectangle")?;
+    let target = cx
+        .update(|cx| overlay.update(cx, |_, window, _| native_bridge::dpi_test_target(window)))
+        .map_err(|e| e.to_string())??;
+    for dpi in [96_u16, 144, 96] {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        // Deliberately outside all GPUI borrows: native messages reenter GPUI.
+        target.inject_same_rect(dpi).map_err(|e| e.to_string())?;
+        let expected = f32::from(dpi) / 96.;
+        loop {
+            let (scale, viewport) = cx
+                .update(|cx| {
+                    overlay.update(cx, |_, window, _| {
+                        (window.scale_factor(), window.viewport_size())
+                    })
+                })
+                .map_err(|e| e.to_string())?;
+            let aligned = (scale - expected).abs() < 0.001
+                && (viewport.width.as_f32() * expected - rect.width() as f32).abs() <= 1.
+                && (viewport.height.as_f32() * expected - rect.height() as f32).abs() <= 1.;
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "DPI without movement failed: dpi={dpi}, scale={scale}, viewport={viewport:?}, physical={rect:?}"
+                ));
+            }
+            if aligned {
+                println!("PROBE_DPI_SAMPLE dpi={dpi} scale={scale} viewport={viewport:?}");
+                break;
+            }
+            cx.background_executor()
+                .timer(Duration::from_millis(16))
+                .await;
+        }
+    }
+    println!("PROBE_DPI_OK");
     Ok(())
 }
 

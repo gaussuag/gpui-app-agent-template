@@ -10,6 +10,8 @@ mod windows;
 pub use unsupported::{
     HostWatch, WindowBinding, list_hosts, resolve_host, resource_counts, run_fixture,
 };
+#[cfg(all(windows, feature = "test-support"))]
+pub use windows::DpiTestWindow;
 
 #[cfg(windows)]
 pub use windows::{

@@ -87,6 +87,12 @@ Escape cancellation and candidate commit in ordinary preview and Overlay.
 The focused command is `scripts/smoke-overlay.ps1 -Suite ime`.
 The default gate does not certify IME behavior.
 
+`scripts/smoke-overlay.ps1 -Suite dpi` checks DPI-message synchronization at
+96 → 144 → 96 DPI with an unchanged native rectangle. It only sends messages
+to the fixture's own window; it does not change system scaling. This regression
+is included in the default full gate. Real system-scaling acceptance is recorded
+in [DPI evidence](docs/overlay-dpi-evidence.md).
+
 `scripts/smoke-overlay.ps1 -Suite components` checks ordinary-preview/Overlay
 Dialog and Sheet opening/Escape closing, menu count reset, and notification
 creation through real input. It also captures tooltip and scroll screenshots

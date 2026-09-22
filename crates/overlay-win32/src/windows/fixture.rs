@@ -128,6 +128,7 @@ fn drive_probe(target: usize) -> bool {
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
     let fallback = std::env::args().any(|arg| arg == "--fallback");
+    let dpi_probe = std::env::args().any(|arg| arg == "--dpi");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -139,6 +140,9 @@ fn drive_probe(target: usize) -> bool {
     command.env("OVERLAY_PROBE_HOST", target.to_string());
     if fallback {
         command.env("OVERLAY_PROBE_DROP_EVENTS", "1");
+    }
+    if dpi_probe {
+        command.arg("--dpi");
     }
     if interactive {
         command.arg("--interactive");
@@ -231,6 +235,7 @@ fn drive_probe(target: usize) -> bool {
         && !stress
         && !geometry
         && !fallback
+        && !dpi_probe
         && close_case.is_none()
         && let Err(error) = exercise_input(
             HWND(target as *mut _),

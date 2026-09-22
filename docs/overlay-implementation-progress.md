@@ -5,6 +5,13 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+Runtime DPI switching is fixed and manually accepted: with Overlay attached to
+Settings, the user changed 100% → 150% → 100% without dragging; Overlay adapted
+automatically. See [DPI evidence](overlay-dpi-evidence.md) for diagnosis and the
+focused regression. Temporary diagnostics were removed. The user also reports
+cross-screen and multiple-desktop checks passed. Negative-coordinate display
+coverage remains unconfirmed; unified regression remains deferred.
+
 The user accepts the 60 Hz item by manual acceptance: both current displays
 are reported as 60 Hz, functionality is normal, and no further refresh-rate
 coverage is requested. Historical timing samples passed their thresholds but
@@ -15,7 +22,7 @@ The user also confirmed all three manual workflow checks passed: content
 retention across HUD/Interactive switches, hide/restore alignment, and host
 switching/host-close/control-window-close without residual overlays. This is
 user-reported acceptance on the current environment; it does not certify the
-deferred DPI/multi-monitor or 60 Hz performance requirements.
+other display-environment requirements beyond the separately recorded evidence.
 
 User-reported manual acceptance: clipboard copy/delete/paste comparison passed
 without issues in ordinary preview and Interactive Overlay. This is manual

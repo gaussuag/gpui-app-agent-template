@@ -1,4 +1,10 @@
 use gpui_kit::{App, Window};
+#[cfg(all(windows, feature = "test-support"))]
+pub(super) fn dpi_test_target(window: &Window) -> Result<overlay_win32::DpiTestWindow, String> {
+    let handle = raw_window_handle::HasWindowHandle::window_handle(window)
+        .map_err(|error| error.to_string())?;
+    overlay_win32::DpiTestWindow::new(handle).map_err(|error| error.to_string())
+}
 pub(super) fn resources() -> overlay_win32::ResourceCounts {
     overlay_win32::resource_counts()
 }

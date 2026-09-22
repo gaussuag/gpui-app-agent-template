@@ -24,12 +24,16 @@ pub fn resource_counts() -> crate::ResourceCounts {
     }
 }
 
+#[cfg(feature = "test-support")]
+mod dpi_test;
 mod fallback;
 mod fixture;
 mod geometry;
 mod host;
 mod watch;
 use crate::InputMode;
+#[cfg(feature = "test-support")]
+pub use dpi_test::DpiTestWindow;
 pub use fixture::run_fixture;
 pub use host::{list_hosts, resolve_host};
 pub use watch::HostWatch;
@@ -49,6 +53,7 @@ pub struct WindowBinding {
 struct BindingState {
     live: Cell<bool>,
     mode: Cell<InputMode>,
+    dpi_pending: Cell<bool>,
 }
 const SUBCLASS_ID: usize = 0x47505549;
 
@@ -64,6 +69,12 @@ unsafe extern "system" fn subclass(
 ) -> LRESULT {
     unsafe {
         let state = &*(data as *const BindingState);
+        if message == WM_DPICHANGED {
+            // GPUI updates its platform scale while forwarding this message,
+            // but an unchanged suggested RECT need not generate WM_SIZE.
+            // Finish synchronization from apply_host, outside GPUI borrows.
+            state.dpi_pending.set(true);
+        }
         if message == WM_NCDESTROY {
             state.live.set(false);
             let _ = RemoveWindowSubclass(hwnd, Some(subclass), SUBCLASS_ID);
@@ -128,6 +139,27 @@ impl WindowBinding {
                 }
             }
         }
+        if self.usable() && self.callback.dpi_pending.replace(false) {
+            // SAFETY: apply_host runs on the creating thread outside GPUI
+            // borrows. Re-read this window's client size after the DPI handler
+            // and host positioning have completed. Deliver its normal size
+            // notification to synchronize GPUI logical viewport and renderer;
+            // no geometry, host state or system DPI is changed here.
+            unsafe {
+                let mut client = RECT::default();
+                GetClientRect(self.hwnd, &mut client)?;
+                let width = u16::try_from(client.right - client.left)
+                    .map_err(|_| Error::from_hresult(E_INVALIDARG))?;
+                let height = u16::try_from(client.bottom - client.top)
+                    .map_err(|_| Error::from_hresult(E_INVALIDARG))?;
+                SendMessageW(
+                    self.hwnd,
+                    WM_SIZE,
+                    Some(WPARAM(SIZE_RESTORED as usize)),
+                    Some(LPARAM(width as isize | ((height as isize) << 16))),
+                );
+            }
+        }
         self.last = Some(state.clone());
         Ok(state)
     }
@@ -148,6 +180,7 @@ impl WindowBinding {
             let callback = Rc::new(BindingState {
                 live: Cell::new(true),
                 mode: Cell::new(InputMode::Passthrough),
+                dpi_pending: Cell::new(false),
             });
             let callback_reference = Rc::into_raw(callback.clone());
             if !SetWindowSubclass(
