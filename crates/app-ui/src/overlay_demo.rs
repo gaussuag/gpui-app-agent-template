@@ -369,13 +369,17 @@ impl Render for OverlayDemo {
             .as_ref()
             .map(|state| {
                 format!(
-                    "当前会话：{:?} · {:?} · PID {} · HWND 0x{:X}\n隐藏原因：{:?} · 宿主模态暂停输入：{}",
+                    "当前会话：{:?} · {:?} · PID {} · HWND 0x{:X}\n隐藏原因：{:?} · 宿主模态暂停输入：{}\n诊断采样 {} · 层级/位置写入 {} · 前置请求 {} · 最长协调 {:.2}ms",
                     state.phase,
                     state.input_mode,
                     state.host.process_id(),
                     state.host.raw(),
                     state.hidden_reason,
-                    state.input_suspended
+                    state.input_suspended,
+                    state.presentation.reconciliations,
+                    state.presentation.placement_writes,
+                    state.presentation.promotion_requests,
+                    state.presentation.max_wall_time.as_secs_f64() * 1000.,
                 )
             })
             .unwrap_or_else(|| "尚未附着".into());
@@ -548,6 +552,13 @@ impl Render for OverlayDemo {
                 view.child(div().text_color(cx.theme().danger).child(error))
             })
             .child(div().text_sm().child(status))
+            .child(Button::new("overlay-diagnostics")
+                .label("刷新诊断（只读）")
+                .disabled(self.active.is_none())
+                .on_click(cx.listener(|view, _, _, cx| {
+                    view.snapshot = view.active.as_ref().and_then(|active| active.snapshot(cx).ok());
+                    cx.notify();
+                })))
             .when_some(self.error.clone(), |view, error| {
                 view.child(
                     div()

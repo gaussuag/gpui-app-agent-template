@@ -195,6 +195,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             let _ = window.update(cx, |_, window, cx| window.focus(&focus, cx));
                         }
                         available = now_available;
+                        let diagnostics = native.diagnostics();
                         let _ = weak.update(cx, |session, cx| {
                             if !runtime::is_open(&session.snapshot.phase) {
                                 return;
@@ -209,6 +210,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                                 || session.snapshot.hidden_reason != actual.visibility_reason
                                 || session.snapshot.input_suspended != actual.input_suspended;
                             session.snapshot.phase = OverlayPhase::Attached;
+                            session.snapshot.presentation = diagnostics;
                             session.snapshot.physical_client_rect =
                                 Some(actual.physical_client_rect);
                             session.snapshot.physical_overlay_rect =

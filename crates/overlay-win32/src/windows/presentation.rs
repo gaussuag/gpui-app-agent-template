@@ -19,6 +19,62 @@ impl WindowBinding {
         self.warning.take()
     }
 
+    pub fn diagnostics(&self) -> crate::PresentationDiagnostics {
+        *self.diagnostics
+    }
+
+    pub(super) fn record_presentation(
+        &mut self,
+        host: crate::HostWindowId,
+        state: &crate::HostSnapshot,
+        started: Instant,
+        cpu_started: Option<Duration>,
+        writes: u64,
+        promotions: u64,
+    ) {
+        let cpu_time = thread_cpu_time()
+            .zip(cpu_started)
+            .map(|(end, start)| end.saturating_sub(start));
+        // SAFETY: diagnostic-only OS queries after reconciliation, outside all
+        // callbacks/GPUI borrows. No titles, user text, disk writes or allocations.
+        let (foreground, capture, host_predecessor, overlay_predecessor) = unsafe {
+            (
+                GetForegroundWindow().0 as usize,
+                GetCapture().0 as usize,
+                GetWindow(HWND(host.raw() as *mut _), GW_HWNDPREV)
+                    .map(|h| h.0 as usize)
+                    .unwrap_or(0),
+                GetWindow(self.hwnd, GW_HWNDPREV)
+                    .map(|h| h.0 as usize)
+                    .unwrap_or(0),
+            )
+        };
+        self.diagnostics.record(crate::PresentationRecord {
+            at: started,
+            generation: host.generation(),
+            intent_id: self.callback.intent_id.get(),
+            foreground,
+            capture,
+            host_predecessor,
+            overlay_predecessor,
+            wall_time: started.elapsed(),
+            cpu_time,
+            placement_writes: self.diagnostics.placement_writes.saturating_sub(writes),
+            promotion_requests: self
+                .diagnostics
+                .promotion_requests
+                .saturating_sub(promotions),
+            promotion: match self.promotion {
+                Promotion::Idle => crate::PromotionStatus::Idle,
+                Promotion::Waiting(_) => crate::PromotionStatus::Waiting,
+                Promotion::Unknown => crate::PromotionStatus::Unknown,
+            },
+            hidden: state.visibility_reason,
+            input_suspended: state.input_suspended,
+            failed: self.order_failed || state.terminal.is_some() || self.warning.is_some(),
+        });
+    }
+
     pub(super) fn warn_unknown_promotion(&mut self) {
         self.warning = Some(host::error(
             crate::ErrorKind::TrackingFailed,
@@ -62,6 +118,8 @@ impl WindowBinding {
                 && self.promotion.begin(now)
             {
                 self.promotion_epoch = epoch;
+                self.diagnostics.promotion_requests =
+                    self.diagnostics.promotion_requests.saturating_add(1);
                 // Accepted limitation: once posted this operation cannot be
                 // cancelled. Never resend from a timer or a foreground event.
                 if let Err(error) = SetWindowPos(
@@ -120,6 +178,8 @@ impl WindowBinding {
                 if !self.usable() {
                     return Err(Error::from_hresult(E_HANDLE));
                 }
+                self.diagnostics.placement_writes =
+                    self.diagnostics.placement_writes.saturating_add(1);
                 SetWindowPos(
                     self.hwnd,
                     Some(if host_topmost {
@@ -184,6 +244,7 @@ impl WindowBinding {
                 }
                 Placement::After(raw) => HWND(raw as *mut _),
             };
+            self.diagnostics.placement_writes = self.diagnostics.placement_writes.saturating_add(1);
             SetWindowPos(
                 self.hwnd,
                 Some(after),
@@ -223,4 +284,33 @@ fn visible_neighbor(mut hwnd: HWND, direction: GET_WINDOW_CMD) -> Result<Option<
         }
     }
     Err(Error::from_hresult(E_FAIL))
+}
+
+// Current-thread accounting only. Windows accounting granularity can make short
+// samples zero; retain raw aggregate time, never claim precise sub-ms CPU results.
+pub(super) fn thread_cpu_time() -> Option<Duration> {
+    let mut created = FILETIME::default();
+    let mut exited = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY: fixed-size stack outputs for the current thread pseudo handle.
+    if unsafe {
+        GetThreadTimes(
+            GetCurrentThread(),
+            &mut created,
+            &mut exited,
+            &mut kernel,
+            &mut user,
+        )
+    }
+    .is_err()
+    {
+        return None;
+    }
+    let ticks = |time: FILETIME| ((time.dwHighDateTime as u64) << 32) | time.dwLowDateTime as u64;
+    Some(Duration::from_nanos(
+        ticks(kernel)
+            .saturating_add(ticks(user))
+            .saturating_mul(100),
+    ))
 }

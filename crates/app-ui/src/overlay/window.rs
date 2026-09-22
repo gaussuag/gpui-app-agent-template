@@ -129,6 +129,7 @@ pub fn open_window<V: Render + 'static>(
             hidden_reason: None,
             error: None,
             native_updates: 0,
+            presentation: Default::default(),
             sample_to_apply: None,
         },
         owner: options.owner,

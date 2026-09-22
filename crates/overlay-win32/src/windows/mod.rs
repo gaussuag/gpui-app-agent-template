@@ -62,6 +62,7 @@ pub struct WindowBinding {
     promotion_epoch: u64,
     warning: Option<crate::OverlayError>,
     order_failed: bool,
+    diagnostics: Box<crate::PresentationDiagnostics>,
     initialized: bool,
     poisoned: bool,
     _thread: PhantomData<Rc<()>>,
@@ -73,6 +74,7 @@ struct BindingState {
     dpi_pending: Cell<bool>,
     dirty: Cell<bool>,
     cancel_epoch: Cell<u64>,
+    intent_id: Cell<u64>,
     suspended: Cell<bool>,
     intent: Cell<Option<(std::time::Instant, u64)>>,
     changed: RefCell<Option<crate::ChangeSignal>>,
@@ -109,6 +111,7 @@ unsafe extern "system" fn subclass(
                 WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_XBUTTONDOWN
             )
         {
+            state.intent_id.set(state.intent_id.get().wrapping_add(1));
             state
                 .intent
                 .set(Some((std::time::Instant::now(), state.cancel_epoch.get())));
@@ -170,6 +173,10 @@ impl WindowBinding {
                 return Ok(last.clone());
             }
         }
+        let started = std::time::Instant::now();
+        let cpu_started = presentation::thread_cpu_time();
+        let writes = self.diagnostics.placement_writes;
+        let promotions = self.diagnostics.promotion_requests;
         let _dpi = host::DpiScope::enter();
         self.callback.dirty.set(false);
         let mut state = host::sample(host, Some(self.hwnd), sequence).with_margins(margins);
@@ -210,6 +217,7 @@ impl WindowBinding {
                 );
             }
         }
+        self.record_presentation(host, &state, started, cpu_started, writes, promotions);
         self.last = Some(state.clone());
         Ok(state)
     }
@@ -233,6 +241,7 @@ impl WindowBinding {
                 dpi_pending: Cell::new(false),
                 dirty: Cell::new(true),
                 cancel_epoch: Cell::new(0),
+                intent_id: Cell::new(0),
                 suspended: Cell::new(false),
                 intent: Cell::new(None),
                 changed: RefCell::new(None),
@@ -262,6 +271,7 @@ impl WindowBinding {
                 promotion_epoch: 0,
                 warning: None,
                 order_failed: false,
+                diagnostics: Default::default(),
                 initialized: false,
                 poisoned: false,
                 _thread: PhantomData,

@@ -1,5 +1,7 @@
 //! Native overlay adapter. All Windows knowledge lives in `windows`.
+mod diagnostics;
 mod margins;
+pub use diagnostics::{PresentationDiagnostics, PresentationRecord, PromotionStatus};
 pub use margins::OverlayMargins;
 #[cfg(any(windows, test))]
 mod presentation;

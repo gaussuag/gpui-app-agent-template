@@ -37,6 +37,9 @@ impl std::error::Error for NativeError {}
 
 pub struct WindowBinding(std::marker::PhantomData<std::rc::Rc<()>>);
 impl WindowBinding {
+    pub fn diagnostics(&self) -> PresentationDiagnostics {
+        PresentationDiagnostics::default()
+    }
     pub fn presentation_changed(&self) -> bool {
         false
     }

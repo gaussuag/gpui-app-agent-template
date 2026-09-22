@@ -25,19 +25,24 @@ for reattachment before another promotion. This does not cancel the posted reque
 Existing worker coalescing remains 16ms / 250ms fallback, with additional order,
 visibility and modal events and a 64-message / 1ms pump batch. Idle observations
 do not write windows or publish business events. No callback writes disk or
-queries UIA. Diagnostics currently use typed snapshots and deduplicated warnings;
-a diagnostic history/ring buffer is not implemented.
+queries UIA. Diagnostics use a fixed 32-record memory ring, with bounded snapshot copies and
+no per-observation allocation, callback work, disk output or extra render events.
+Records retain generation/intent, foreground/capture, neighbor handles, native
+write/request counts, outcome and wall/CPU accounting time. `snapshot.presentation`
+exposes the latest ring; the Demo has an explicit read-only refresh button. CPU
+accounting has OS granularity and is not proof of sub-ms CPU performance.
 
 Verification of this extension:
 - 34 app-ui tests passed, including modal capture release/content retention and
   no business notifications for unchanged native observations.
-- 7 overlay-win32 tests passed. A real same-thread Win32 adapter fixture verifies
+- 8 overlay-win32 tests passed (including bounded diagnostic history). A real same-thread Win32 adapter fixture verifies
   inactive visibility, occluder > overlay > host, 64 idle reconciliations with
   zero WINDOWPOS writes, same-sequence Z-order changes, topmost up/down, modal
   ordering/disabled input, hide/restore and unchanged foreground. It is not a
   substitute for cross-process input/performance evidence.
-- Strict Clippy and the Windows x64 Demo build passed. Review results follow
-  the final implementation commit.
+- Strict Clippy and the Windows x64 Demo build passed. Initial dual-axis review found no behavioral or standards defects; the missing
+  bounded diagnostic instrumentation identified by the Spec review was subsequently added.
+  Remaining desktop/performance acceptance is explicit.
 - New `scripts/smoke-overlay.ps1 -Suite presentation` uses a controlled third
   window and actual GPUI input, requiring natural occlusion, host promotion,
   retained foreground, exactly one increment and focused text input. The initial

@@ -9,7 +9,8 @@ mod types;
 mod window;
 pub use native_bridge::{
     ErrorKind, HiddenReason, HostInfo, HostList, HostWindowId, InputMode, OverlayError,
-    OverlayMargins, PhysicalRect, RawHostHandle,
+    OverlayMargins, PhysicalRect, PresentationDiagnostics, PresentationRecord, PromotionStatus,
+    RawHostHandle,
 };
 pub use runtime::{init, prepare_quit};
 pub use types::*;

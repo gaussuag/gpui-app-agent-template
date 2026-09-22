@@ -26,6 +26,8 @@ pub struct OverlaySnapshot {
     pub error: Option<OverlayError>,
     /// Number of committed geometry/visibility changes, including initial state.
     pub native_updates: u64,
+    /// Fixed-capacity native trace; read on demand, no extra render notifications.
+    pub presentation: super::PresentationDiagnostics,
     /// Native sample creation to completion of its foreground apply transaction.
     pub sample_to_apply: Option<std::time::Duration>,
 }

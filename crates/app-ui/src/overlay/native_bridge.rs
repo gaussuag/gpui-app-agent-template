@@ -12,7 +12,8 @@ pub(super) use overlay_win32::ChangeSignal;
 pub(super) use overlay_win32::HostSnapshot;
 pub use overlay_win32::{
     ErrorKind, HiddenReason, HostInfo, HostList, HostWindowId, InputMode, OverlayError,
-    OverlayMargins, PhysicalRect, RawHostHandle,
+    OverlayMargins, PhysicalRect, PresentationDiagnostics, PresentationRecord, PromotionStatus,
+    RawHostHandle,
 };
 
 pub(super) fn failure(kind: ErrorKind, message: &str) -> OverlayError {
@@ -61,6 +62,13 @@ pub(super) enum WindowBinding {
     Simulated(testing::Backend),
 }
 impl WindowBinding {
+    pub fn diagnostics(&self) -> overlay_win32::PresentationDiagnostics {
+        match self {
+            Self::Native(native) => native.diagnostics(),
+            #[cfg(test)]
+            Self::Simulated(_) => Default::default(),
+        }
+    }
     pub fn presentation_changed(&self) -> bool {
         match self {
             Self::Native(native) => native.presentation_changed(),

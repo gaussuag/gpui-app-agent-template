@@ -109,6 +109,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(visible_neighbor(own.0, GW_HWNDPREV), Some(third.0));
         POSITIONS.set(0);
+        let writes_before_idle = binding.diagnostics().placement_writes;
         for _ in 0..64 {
             binding.apply_host(id, 1, margins)?;
         }
@@ -117,6 +118,8 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             0,
             "unchanged presentation must not write geometry/order"
         );
+        assert_eq!(binding.diagnostics().placement_writes, writes_before_idle);
+        assert_eq!(binding.diagnostics().recent().count(), 32);
 
         SetWindowPos(
             host.0,
