@@ -87,6 +87,14 @@ Escape cancellation and candidate commit in ordinary preview and Overlay.
 The focused command is `scripts/smoke-overlay.ps1 -Suite ime`.
 The default gate does not certify IME behavior.
 
+`scripts/smoke-overlay.ps1 -Suite components` checks ordinary-preview/Overlay
+Dialog and Sheet opening/Escape closing, menu count reset, and notification
+creation through real input. It also captures tooltip and scroll screenshots
+for visual inspection; those screenshots are not automatic visual assertions.
+This suite is included in the default full gate.
+See the [manual acceptance checklist](docs/overlay-manual-acceptance.md) for
+user feedback and outstanding display-environment verification.
+
 That command is the canonical gate for ordinary changes. It runs formatting,
 Clippy, one workspace test run including GPUI Kit test-support, documentation
 links, dependency architecture, identity/dependency validator fixtures, and an explicit

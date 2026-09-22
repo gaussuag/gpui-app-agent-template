@@ -118,9 +118,12 @@ fn drive_probe(target: usize) -> bool {
     let Some(probe) = std::env::args_os().nth(1) else {
         return true;
     };
-    let preview = std::env::args().any(|arg| arg == "--ime-preview");
-    let ime = preview || std::env::args().any(|arg| arg == "--ime");
-    let interactive = ime || std::env::args().any(|arg| arg == "--interactive");
+    let preview = std::env::args()
+        .any(|arg| matches!(arg.as_str(), "--ime-preview" | "--components-preview"));
+    let components =
+        std::env::args().any(|arg| matches!(arg.as_str(), "--components" | "--components-preview"));
+    let ime = std::env::args().any(|arg| matches!(arg.as_str(), "--ime" | "--ime-preview"));
+    let interactive = ime || components || std::env::args().any(|arg| arg == "--interactive");
     let demo = std::env::args().any(|arg| arg == "--demo");
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
@@ -144,7 +147,14 @@ fn drive_probe(target: usize) -> bool {
         command.arg("--ime");
     }
     if preview {
-        command.arg("--ime-preview");
+        command.arg(if components {
+            "--components-preview"
+        } else {
+            "--ime-preview"
+        });
+    }
+    if components {
+        command.arg("--components");
     }
     if demo {
         command.arg("--overlay-demo");
@@ -228,6 +238,7 @@ fn drive_probe(target: usize) -> bool {
             interactive,
             ime,
             preview,
+            components,
         )
     {
         eprintln!(
@@ -303,6 +314,7 @@ fn exercise_input(
     interactive: bool,
     ime: bool,
     preview: bool,
+    components: bool,
 ) -> Result<(), String> {
     let _dpi = super::host::DpiScope::enter();
     if preview {
@@ -354,6 +366,105 @@ fn exercise_input(
         if clicks != 0 || wheels != 0 {
             return Err("interactive input leaked to host".into());
         }
+        if components {
+            for (name, point) in [("dialog", (70., 310.)), ("sheet", (150., 310.))] {
+                click_wheel(host, child_pid, point, false)?;
+                std::thread::sleep(Duration::from_millis(350));
+                capture(
+                    host,
+                    &format!(
+                        "target/probe-components-{}-{name}.bmp",
+                        if preview { "preview" } else { "overlay" }
+                    ),
+                )?;
+                let keys = [KEYBD_EVENT_FLAGS(0), KEYEVENTF_KEYUP].map(|flags| INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VK_ESCAPE,
+                            dwFlags: flags,
+                            ..Default::default()
+                        },
+                    },
+                });
+                send_owned(host, child_pid, &keys, true)?;
+                std::thread::sleep(Duration::from_millis(350));
+            }
+            click_wheel(host, child_pid, (140., 180.), false)?;
+            std::thread::sleep(Duration::from_millis(350));
+            capture(
+                host,
+                &format!(
+                    "target/probe-components-{}-menu.bmp",
+                    if preview { "preview" } else { "overlay" }
+                ),
+            )?;
+            // Close with Escape, then reopen and invoke the item. If Escape
+            // left the menu open, the next toggle closes it and reset fails.
+            let escape = [KEYBD_EVENT_FLAGS(0), KEYEVENTF_KEYUP].map(|flags| INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_ESCAPE,
+                        dwFlags: flags,
+                        ..Default::default()
+                    },
+                },
+            });
+            send_owned(host, child_pid, &escape, true)?;
+            std::thread::sleep(Duration::from_millis(200));
+            click_wheel(host, child_pid, (140., 180.), false)?;
+            std::thread::sleep(Duration::from_millis(200));
+            click_wheel(host, child_pid, (140., 227.), false)?;
+            std::thread::sleep(Duration::from_millis(350));
+            click_wheel(host, child_pid, (215., 310.), false)?;
+            std::thread::sleep(Duration::from_millis(350));
+            capture(
+                host,
+                &format!(
+                    "target/probe-components-{}-notification.bmp",
+                    if preview { "preview" } else { "overlay" }
+                ),
+            )?;
+            // SAFETY: query only our fixture/preview client dimensions; actual
+            // pointer movement and click still revalidate ownership below.
+            let close_point = unsafe {
+                let mut rect = RECT::default();
+                GetClientRect(host, &mut rect).map_err(|error| error.to_string())?;
+                let scale = GetDpiForWindow(host) as f64 / 96.0;
+                (f64::from(rect.right - rect.left) / scale - 30., 64.)
+            };
+            position_owned(host, child_pid, close_point)?;
+            std::thread::sleep(Duration::from_millis(200));
+            click_wheel(host, child_pid, close_point, false)?;
+            std::thread::sleep(Duration::from_millis(300));
+            position_owned(host, child_pid, (70., 180.))?;
+            std::thread::sleep(Duration::from_millis(800));
+            let container = if preview { "preview" } else { "overlay" };
+            capture(
+                host,
+                &format!("target/probe-components-{container}-tooltip.bmp"),
+            )?;
+            position_owned(host, child_pid, (140., 380.))?;
+            let wheel = INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dwFlags: MOUSEEVENTF_WHEEL,
+                        mouseData: (-360_i32) as u32,
+                        ..Default::default()
+                    },
+                },
+            };
+            send_owned(host, child_pid, &[wheel], true)?;
+            std::thread::sleep(Duration::from_millis(250));
+            capture(
+                host,
+                &format!("target/probe-components-{container}-scroll.bmp"),
+            )?;
+            println!("PROBE_REAL_INPUT_OK");
+            return Ok(());
+        }
         click_wheel(host, child_pid, (140., 266.), false)?;
         std::thread::sleep(Duration::from_millis(200));
         if ime {
@@ -402,6 +513,31 @@ fn exercise_input(
                         },
                     },
                 });
+                send_owned(host, child_pid, &keys, true)?;
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            // Exercise the same ordinary Kit focus traversal after committing
+            // text. Separate batches let the probe observe the intermediate
+            // focus, with ownership rechecked before each chord.
+            for shift in [false, true] {
+                let mut chord = vec![(VK_TAB, KEYBD_EVENT_FLAGS(0)), (VK_TAB, KEYEVENTF_KEYUP)];
+                if shift {
+                    chord.insert(0, (VK_SHIFT, KEYBD_EVENT_FLAGS(0)));
+                    chord.push((VK_SHIFT, KEYEVENTF_KEYUP));
+                }
+                let keys: Vec<_> = chord
+                    .into_iter()
+                    .map(|(key, flags)| INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: key,
+                                dwFlags: flags,
+                                ..Default::default()
+                            },
+                        },
+                    })
+                    .collect();
                 send_owned(host, child_pid, &keys, true)?;
                 std::thread::sleep(Duration::from_millis(200));
             }
@@ -486,7 +622,7 @@ pub(super) fn send_owned(
     Ok(())
 }
 
-fn click_wheel(host: HWND, child_pid: u32, point: (f64, f64), wheel: bool) -> Result<(), String> {
+fn position_owned(host: HWND, child_pid: u32, point: (f64, f64)) -> Result<(), String> {
     if !owned_foreground(host, child_pid, false) {
         return Err(
             "environment: foreground left controlled windows before pointer positioning".into(),
@@ -511,6 +647,11 @@ fn click_wheel(host: HWND, child_pid: u32, point: (f64, f64), wheel: bool) -> Re
         }
         SetCursorPos(position.x, position.y).map_err(|error| error.to_string())?;
     }
+    Ok(())
+}
+
+fn click_wheel(host: HWND, child_pid: u32, point: (f64, f64), wheel: bool) -> Result<(), String> {
+    position_owned(host, child_pid, point)?;
     let flags = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_WHEEL];
     let input: Vec<_> = flags
         .into_iter()

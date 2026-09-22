@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime")]
+    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components")]
     [string]$Suite = "all"
 )
 
@@ -85,6 +85,10 @@ try {
     if ($Suite -in @("all", "fallback")) {
         Write-Host "==> overlay convergence with deliberately dropped WinEvents (15s)"
         Invoke-OverlayProbe -Mode "--fallback" -Marker "PROBE_FALLBACK_OK" -TimeoutSeconds 15
+    }
+    if ($Suite -in @("all", "components")) {
+        Invoke-OverlayProbe -Mode "--components-preview" -Marker "PROBE_COMPONENTS_OK" -TimeoutSeconds 15
+        Invoke-OverlayProbe -Mode "--components" -Marker "PROBE_COMPONENTS_OK" -TimeoutSeconds 15
     }
     if ($Suite -eq "ime") {
         Write-Host "==> ordinary preview real Chinese IME comparison (15s)"

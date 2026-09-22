@@ -11,7 +11,62 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Default, Debug)]
+struct ComponentObservation {
+    dialog_seen: bool,
+    dialog_closed: bool,
+    sheet_seen: bool,
+    sheet_closed: bool,
+    notification_seen: bool,
+    notification_closed: bool,
+    increment_seen: bool,
+    reset_seen: bool,
+}
+impl ComponentObservation {
+    fn observe(&mut self, count: usize, window: &mut Window, cx: &mut gpui_kit::App) {
+        use gpui_kit::component::WindowExt as _;
+        let dialog = window.has_active_dialog(cx);
+        let sheet = window.has_active_sheet(cx);
+        self.dialog_seen |= dialog;
+        self.dialog_closed |= self.dialog_seen && !dialog;
+        self.sheet_seen |= sheet;
+        self.sheet_closed |= self.sheet_seen && !sheet;
+        let notification = !window.notifications(cx).is_empty();
+        self.notification_seen |= notification;
+        self.notification_closed |= self.notification_seen && !notification;
+        self.increment_seen |= count == 1;
+        self.reset_seen |= self.increment_seen && count == 0;
+    }
+    fn verify(&self) -> Result<(), String> {
+        if self.dialog_closed && self.sheet_closed && self.notification_closed && self.reset_seen {
+            println!("PROBE_COMPONENTS_OK {self:?}");
+            Ok(())
+        } else {
+            Err(format!(
+                "Native component observations incomplete: {self:?}"
+            ))
+        }
+    }
+}
+
 struct Owner;
+
+#[derive(Default)]
+struct FocusRoundTrip {
+    started: bool,
+    left: bool,
+    returned: bool,
+}
+impl FocusRoundTrip {
+    fn observe(&mut self, committed: bool, focused: bool) {
+        if !committed {
+            return;
+        }
+        self.started |= focused;
+        self.left |= self.started && !focused;
+        self.returned |= self.left && focused;
+    }
+}
 impl Render for Owner {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         gpui_kit::div().child("Overlay probe owner")
@@ -48,6 +103,7 @@ async fn exercise(
     let stress = std::env::args().any(|arg| arg == "--stress");
     let interactive = std::env::args().any(|arg| arg == "--interactive");
     let ime = std::env::args().any(|arg| arg == "--ime");
+    let components = std::env::args().any(|arg| arg == "--components");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -127,16 +183,43 @@ async fn exercise(
                 })
             })
             .map_err(|error| error.to_string())?;
-            if ime {
+            if components {
+                let mut observed = ComponentObservation::default();
+                let deadline = Instant::now() + Duration::from_secs(8);
+                while Instant::now() < deadline {
+                    cx.update(|cx| {
+                        overlay.update(cx, |content, window, cx| {
+                            observed.observe(content.count, window, cx)
+                        })
+                    })
+                    .map_err(|error| error.to_string())?;
+                    let state = cx
+                        .update(|cx| overlay.snapshot(cx))
+                        .map_err(|error| error.to_string())?;
+                    if state.input_mode != InputMode::Interactive {
+                        return Err("Component Escape unexpectedly left Interactive mode".into());
+                    }
+                    cx.background_executor()
+                        .timer(Duration::from_millis(25))
+                        .await;
+                }
+                observed.verify()?;
+            } else if ime {
                 let deadline = Instant::now() + Duration::from_secs(7);
                 let mut was_composing = false;
                 let mut composition_sessions = 0;
+                let mut focus_trip = FocusRoundTrip::default();
                 while Instant::now() < deadline {
                     let composing = cx
                         .update(|cx| {
                             overlay.update(cx, |content, window, cx| {
                                 content.input.update(cx, |input, cx| {
-                                    input.marked_text_range(window, cx).is_some()
+                                    let composing = input.marked_text_range(window, cx).is_some();
+                                    focus_trip.observe(
+                                        !composing && input.value() == "你好",
+                                        input.focus_handle(cx).is_focused(window),
+                                    );
+                                    composing
                                 })
                             })
                         })
@@ -154,6 +237,12 @@ async fn exercise(
                     return Err(format!(
                         "Expected canceled and committed IME sessions, observed {composition_sessions}, still_composing={was_composing}"
                     ));
+                }
+                if !focus_trip.returned {
+                    return Err(
+                        "Native Tab/Shift+Tab did not leave and return to the committed input"
+                            .into(),
+                    );
                 }
             } else {
                 cx.background_executor().timer(Duration::from_secs(7)).await;
@@ -184,7 +273,7 @@ async fn exercise(
                     })
                     .map_err(|error| error.to_string())?;
                 let expected = if ime { "你好" } else { "test" };
-                if count < 1 || text != expected {
+                if !components && (count < 1 || text != expected) {
                     return Err(format!(
                         "Real input mismatch: count={count}, text={text:?}, input_focused={focused}; expected count>=1 and text={expected:?}."
                     ));
@@ -297,16 +386,34 @@ async fn exercise_preview(cx: &mut AsyncApp) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let content = content.ok_or("Preview content was not created")?;
     let outcome = async {
+        if std::env::args().any(|arg| arg == "--components") {
+            let mut observed = ComponentObservation::default();
+            let window_handle: gpui_kit::AnyWindowHandle = preview.into();
+            let deadline = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < deadline {
+                cx.update(|cx| window_handle.update(cx, |_, window, cx| {
+                    observed.observe(content.read(cx).count, window, cx);
+                })).map_err(|error| error.to_string())?;
+                cx.background_executor().timer(Duration::from_millis(25)).await;
+            }
+            return observed.verify();
+        }
         let deadline = Instant::now() + Duration::from_secs(7);
         let mut was_composing = false;
         let mut sessions = 0;
+        let mut focus_trip = FocusRoundTrip::default();
         while Instant::now() < deadline {
             let composing = cx
                 .update(|cx| {
                     preview.update(cx, |_, window, cx| {
                         content.update(cx, |view, cx| {
                             view.input.update(cx, |input, cx| {
-                                input.marked_text_range(window, cx).is_some()
+                                let composing = input.marked_text_range(window, cx).is_some();
+                                focus_trip.observe(
+                                    !composing && input.value() == "你好",
+                                    input.focus_handle(cx).is_focused(window),
+                                );
+                                composing
                             })
                         })
                     })
@@ -328,6 +435,9 @@ async fn exercise_preview(cx: &mut AsyncApp) -> Result<(), String> {
             return Err(format!(
                 "Ordinary preview IME failed: count={count}, text={text:?}, sessions={sessions}, still_composing={was_composing}"
             ));
+        }
+        if !focus_trip.returned {
+            return Err("Ordinary preview Tab/Shift+Tab did not leave and return to the committed input".into());
         }
         println!("PROBE_IME_PREVIEW_OK composition_sessions={sessions} text=你好");
         Ok(())
@@ -371,7 +481,11 @@ pub fn run_feasibility_probe() -> bool {
             let resolved = resolve_host(RawHostHandle(raw), cx);
             cx.spawn(async move |cx| {
                 let outcome = match resolved.await {
-                    Ok(_) if std::env::args().any(|arg| arg == "--ime-preview") => {
+                    Ok(_)
+                        if std::env::args().any(|arg| {
+                            matches!(arg.as_str(), "--ime-preview" | "--components-preview")
+                        }) =>
+                    {
                         exercise_preview(cx).await
                     }
                     Ok(host) => exercise(owner.into(), host, cx).await,

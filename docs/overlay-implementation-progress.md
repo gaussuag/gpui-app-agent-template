@@ -5,6 +5,47 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+User-reported manual acceptance: clipboard copy/delete/paste comparison passed
+without issues in ordinary preview and Interactive Overlay. This is manual
+evidence, not an automated OS-clipboard test. The user requested that unified
+regression not run for now; stage-wide repository/generated gates stay pending.
+The remaining user-facing checklist is [manual acceptance](overlay-manual-acceptance.md).
+
+Component-acceptance continuation (work in progress): the native IME comparison
+now additionally sends Tab then Shift+Tab after commit and observes focus leave
+and return in both containers without changing the text. The new assertion
+first failed without those keys (`target/focus-red.log`), then passed with real
+guarded input (`target/focus-green.log`). Remaining component acceptance is
+grouped into one stage. Both review axes have completed without remaining
+actionable findings; unified regression is deferred at the user's request.
+
+The independent `-Suite components` now passes in both containers, with actual
+clicks and observable Dialog/Sheet open-close transitions, menu count reset and
+notification creation. Overlay remains Interactive throughout component Escape.
+The test initially exposed a fixture-only recursive Root borrow; observing
+through AnyWindowHandle avoids borrowing the Root entity. A wrong menu-item
+coordinate then failed the reset assertion and was corrected from the screenshot.
+No business behavior was changed. Default gates now include this suite.
+Visual inspection confirmed the same tooltip and a wheel movement from list
+items 01–04 to 09–12 in both containers:
+[preview tooltip](overlay-evidence/probe-components-preview-tooltip-200.png),
+[overlay tooltip](overlay-evidence/probe-components-overlay-tooltip-200.png),
+[preview scroll](overlay-evidence/probe-components-preview-scroll-200.png),
+[overlay scroll](overlay-evidence/probe-components-overlay-scroll-200.png).
+These are visual evidence for the current 200% desktop, not screenshot assertions.
+
+Menu Escape/reopen and notification close-button input now pass natively in
+both containers (`target/components-final.log`), with an eight-second observation
+window and a required notification present-to-absent transition. Strict Clippy
+passes. Native resources return to zero and both processes complete cleanup.
+Review follow-up confirmed that locked `gpui-base 0.6.4` Popover trigger mouse
+down invokes `toggle_open`, whose transition uses `!self.open`. The menu
+Escape/reopen assertion therefore matches the current component contract.
+An omitted-Escape native negative control failed specifically with
+`reset_seen: false` (`target/components-menu-negative.log`). The source was
+restored byte-for-byte in `finally` and the fixture rebuilt; the negative-control
+change is not part of the delivered source.
+
 Real Microsoft Pinyin comparison now passes on the current 200% desktop in
 both ordinary preview and Interactive Overlay. Guarded virtual-key input opens
 two observed composition sessions: Escape cancels the first, Space commits
@@ -156,10 +197,9 @@ Two subsequent native attempts were blocked before input by foreground guards
 disproved the empty-text failure. The user has been asked for an unlocked,
 undisturbed desktop interval; no safeguard was bypassed.
 
-Still uncompleted beyond the user-deferred display cases: native ordinary-window
-versus overlay comparisons for clipboard, Tab/Shift+Tab, tooltip,
-scroll and all temporary layers; performance evidence on a confirmed ordinary
-60 Hz desktop. Missed move/resize/hide/restore notifications are now covered by
+Still uncompleted beyond the user-deferred display cases: performance evidence
+on a confirmed ordinary 60 Hz desktop, plus the current stage's unified gates
+deferred at the user's request. Missed move/resize/hide/restore notifications are covered by
 the dedicated native fallback suite above.
 Existing headless component/lifecycle tests do not replace those native checks.
 
