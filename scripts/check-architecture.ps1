@@ -58,7 +58,7 @@ foreach ($packageName in @("winresource")) {
 }
 
 $workspacePackages = @{}
-foreach ($packageName in @("app-core", "app-ui", "desktop")) {
+foreach ($packageName in @($metadata.packages | Where-Object { $_.id -in $metadata.workspace_members } | ForEach-Object name)) {
     $packages = @($metadata.packages | Where-Object { $_.name -eq $packageName -and $_.id -in $metadata.workspace_members })
     if ($packages.Count -ne 1) {
         throw "Workspace architecture violation: expected one workspace package named $packageName."
@@ -66,9 +66,20 @@ foreach ($packageName in @("app-core", "app-ui", "desktop")) {
     $workspacePackages[$packageName] = $packages[0]
 
     $memberManifest = Get-Content -Raw -LiteralPath $packages[0].manifest_path
-    if ($memberManifest -notmatch '(?ms)^\[lints\]\s+workspace\s*=\s*true\s*$') {
+    if ($packageName -eq 'overlay-win32') {
+        if ($memberManifest -notmatch '(?ms)\[lints.rust\]\s+unsafe_code\s*=\s*"deny"\s+unused_must_use\s*=\s*"deny"') {
+            throw 'Lint policy violation: overlay-win32 must deny unsafe by default and deny unused results.'
+        }
+        foreach ($lint in @('dbg_macro', 'expect_used', 'todo', 'unimplemented', 'unwrap_used')) {
+            if ($memberManifest -notmatch "(?m)^$lint\s*=\s*`"deny`"") { throw "Lint policy violation: overlay-win32 must deny $lint." }
+        }
+    } elseif ($memberManifest -notmatch '(?ms)^\[lints\]\s+workspace\s*=\s*true\s*$') {
         throw "Lint policy violation: $packageName must inherit workspace lints."
     }
+}
+foreach ($sourceFile in Get-ChildItem -LiteralPath (Join-Path $root 'crates') -Recurse -Filter '*.rs') {
+    $relativePath = [IO.Path]::GetRelativePath($root, $sourceFile.FullName)
+    Assert-OverlaySource -RelativePath $relativePath -Source (Get-Content -Raw -LiteralPath $sourceFile.FullName)
 }
 
 function Assert-Dependencies {

@@ -2,6 +2,9 @@
 
 use std::{cell::Cell, rc::Rc};
 
+pub mod overlay;
+mod overlay_demo;
+
 use app_core::{AppState, Command, Effect, Snapshot, WorkStatus};
 use gpui_kit::component::{
     ActiveTheme as _, Root,
@@ -44,6 +47,7 @@ impl LaunchIdentity {
 enum LaunchMode {
     Interactive,
     Smoke,
+    OverlayDemo,
 }
 
 struct ApplicationLifecycle {
@@ -68,6 +72,11 @@ pub fn run(identity: LaunchIdentity) {
     run_with_mode(identity, LaunchMode::Interactive);
 }
 
+/// Launch the external-window selection and overlay demonstration.
+pub fn run_overlay_demo(identity: LaunchIdentity) {
+    run_with_mode(identity, LaunchMode::OverlayDemo);
+}
+
 /// Launch the production window in a finite native-backend self-check.
 ///
 /// The check succeeds only after a real frame, a production typed Action, its
@@ -85,7 +94,8 @@ fn run_with_mode(identity: LaunchIdentity, mode: LaunchMode) -> bool {
         .with_assets(gpui_kit::assets::Assets)
         .run(move |cx| {
             gpui_kit::init(cx);
-            install_last_window_quit_policy(cx, |cx| cx.quit());
+            overlay::init(cx);
+            install_last_window_quit_policy(cx, |cx| overlay::prepare_quit(cx, |cx| cx.quit()));
 
             let bounds = Bounds::centered(None, size(px(920.0), px(620.0)), cx);
             let opened = cx.open_window(
@@ -95,6 +105,11 @@ fn run_with_mode(identity: LaunchIdentity, mode: LaunchMode) -> bool {
                 },
                 move |window, cx| {
                     window.set_window_title(identity.display_name());
+                    if mode == LaunchMode::OverlayDemo {
+                        let view =
+                            cx.new(|cx| overlay_demo::OverlayDemo::new(identity, window, cx));
+                        return cx.new(|cx| Root::new(view, window, cx));
+                    }
                     let view = cx.new(|cx| TemplateView::new(identity, cx));
                     let focus_handle = view.read(cx).focus_handle.clone();
                     window.focus(&focus_handle, cx);
@@ -127,7 +142,7 @@ fn run_with_mode(identity: LaunchIdentity, mode: LaunchMode) -> bool {
             }
         });
 
-    mode == LaunchMode::Interactive || smoke_succeeded.get()
+    mode != LaunchMode::Smoke || smoke_succeeded.get()
 }
 
 struct TemplateView {

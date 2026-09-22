@@ -197,6 +197,8 @@ version = "0.1.0"
 dependencies = [
  "app-core",
  "gpui-kit",
+ "overlay-win32",
+ "raw-window-handle",
 ]
 
 [[package]]
@@ -4693,6 +4695,14 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "overlay-win32"
+version = "0.1.0"
+dependencies = [
+ "raw-window-handle",
+ "windows 0.61.3",
 ]
 
 [[package]]

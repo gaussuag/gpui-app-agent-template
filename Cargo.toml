@@ -3,6 +3,7 @@ members = [
     "crates/app-core",
     "crates/app-ui",
     "crates/desktop",
+    "crates/overlay-win32",
 ]
 default-members = ["crates/desktop"]
 resolver = "2"

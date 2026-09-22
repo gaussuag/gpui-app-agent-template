@@ -49,10 +49,21 @@ function Assert-UiDependencies {
         if ($members.Count -ne 1) {
             throw "UI architecture violation: expected one workspace $name."
         }
-        $member = $members[0]
+    }
+    foreach ($member in @($Metadata.packages | Where-Object { $_.id -in $Metadata.workspace_members })) {
+        $name = $member.name
         foreach ($dependency in $member.dependencies) {
             if ($dependency.name -match '^gpui($|[-_])' -and ($name -ne "app-ui" -or $dependency.name -ne "gpui-kit")) {
                 throw "UI architecture violation: $name dependency $($dependency.name) bypasses the app-ui Kit facade."
+            }
+            if ($dependency.name -match '^(windows|windows-sys|winapi)$' -and $name -ne 'overlay-win32') {
+                throw "Native isolation violation: $name must not depend on $($dependency.name); use overlay-win32."
+            }
+            if ($name -eq 'overlay-win32' -and $dependency.name -in @('app-core', 'app-ui', 'desktop')) {
+                throw "Native isolation violation: overlay-win32 must not depend on $($dependency.name)."
+            }
+            if ($name -eq 'app-core' -and $dependency.name -in @('overlay-win32', 'raw-window-handle')) {
+                throw "Native isolation violation: app-core must not contain platform dependencies."
             }
         }
         if ($name -eq "app-ui") { $ui = $member }
@@ -70,4 +81,26 @@ function Assert-UiDependencies {
     }
 }
 
-Export-ModuleMember -Function Assert-UiDependencies
+function Assert-OverlaySource {
+    param([string]$RelativePath, [string]$Source)
+    $relative = $RelativePath.Replace('\', '/')
+    if ($relative -like 'crates/app-ui/src/*.rs') {
+        if ($Source -match '\b(windows|windows_sys|winapi)::|\bWM_[A-Z_]+\b') {
+            throw "Native source isolation violation: Win32 implementation in $relative."
+        }
+        if ($relative -ne 'crates/app-ui/src/overlay/native_bridge.rs' -and $Source -match '\b(overlay_win32|raw_window_handle)::') {
+            throw "Native bridge isolation violation: adapter access in $relative."
+        }
+    }
+    if ($relative -like 'crates/overlay-win32/*.rs' -and $relative -notlike 'crates/overlay-win32/src/windows/*') {
+        $allowed = $Source
+        if ($relative -eq 'crates/overlay-win32/src/lib.rs') {
+            $allowed = $allowed -replace '#\[allow\(unsafe_code\)\]\s*mod windows;', 'mod windows;'
+        }
+        if ($allowed -match '\bunsafe\s*(\{|fn|extern|impl|trait)|#\s*!?\s*\[allow\s*\(unsafe_code') {
+            throw "Unsafe isolation violation: unsafe is restricted to overlay-win32/src/windows ($relative)."
+        }
+    }
+}
+
+Export-ModuleMember -Function Assert-UiDependencies, Assert-OverlaySource

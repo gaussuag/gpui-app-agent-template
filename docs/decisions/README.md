@@ -15,6 +15,7 @@ Current decisions:
 - [Cargo-owned product identity](0003-product-identity.md)
 - [GPUI Kit facade](0007-gpui-kit.md)
 - [Spec-driven development and focused verification](0008-spec-driven-development.md)
+- [Native overlay boundary and coordinated exit](0009-native-overlay-lifecycle.md)
 
 Historical decisions (superseded):
 

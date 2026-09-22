@@ -107,3 +107,30 @@ Assert-Rejected "missing test dependency feature" {
 } "test-support"
 
 Write-Host "GPUI Kit dependency policy self-tests passed."
+
+$extraMember = New-MetadataFixture
+$extraMember.packages += [pscustomobject]@{ name = 'overlay-win32'; id = 'overlay'; dependencies = @(); features = @{} }
+$extraMember.workspace_members += 'overlay'
+Assert-UiDependencies -Metadata $extraMember
+($extraMember.packages | Where-Object name -eq 'overlay-win32').dependencies = @([pscustomobject]@{ name = 'gpui-kit' })
+try { Assert-UiDependencies -Metadata $extraMember; throw 'New member bypass was accepted.' }
+catch { if ($_.Exception.Message -notlike '*bypasses the app-ui Kit facade*') { throw } }
+
+Assert-Rejected 'core native dependency' {
+    param($m)
+    ($m.packages | Where-Object name -eq 'app-core').dependencies = @([pscustomobject]@{ name = 'windows' })
+} 'Native isolation'
+
+Assert-OverlaySource 'crates/app-ui/src/overlay/native_bridge.rs' 'use overlay_win32::WindowBinding;'
+Assert-OverlaySource 'crates/overlay-win32/src/windows/fixture.rs' 'unsafe { fixture(); }'
+Assert-OverlaySource 'crates/overlay-win32/src/lib.rs' '#[allow(unsafe_code)] mod windows;'
+foreach ($case in @(
+    @('crates/app-ui/src/overlay_demo.rs', 'use overlay_win32::WindowBinding;'),
+    @('crates/app-ui/src/overlay/native_bridge.rs', 'use windows::Win32;'),
+    @('crates/overlay-win32/examples/fixture.rs', 'unsafe { fixture(); }'),
+    @('crates/overlay-win32/src/lib.rs', '#[allow(unsafe_code)] mod other;')
+)) {
+    try { Assert-OverlaySource $case[0] $case[1]; throw "Source isolation accepted $($case[0])." }
+    catch { if ($_.Exception.Message -notlike '*isolation violation*') { throw } }
+}
+Write-Host 'Overlay source and workspace-member isolation fixtures passed.'

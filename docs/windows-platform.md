@@ -32,6 +32,13 @@ project.
 - Surface recoverable native failures as user-visible state with an action the
   user can take.
 
+The overlay implementation uses `overlay-win32/src/windows` for every native
+operation and fixture helper. `app-ui::overlay::native_bridge` is its only GPUI
+caller. The adapter temporarily enters PerMonitorV2 thread DPI context around
+physical-coordinate operations and restores it afterward. Borrowed HWNDs do
+not convey destruction authority. The session coordinator owns stop/unbind/
+background-join ordering; see [ADR 0009](decisions/0009-native-overlay-lifecycle.md).
+
 ## Product resources
 
 The desktop Cargo manifest, `crates/desktop/build.rs`, and the fixed
@@ -77,17 +84,32 @@ Run it directly with:
 The canonical `scripts/check.ps1` builds the Windows target and then runs this
 smoke with `-SkipBuild`; CI therefore executes the same path.
 
+`scripts/smoke-overlay.ps1` also runs from the canonical gate. Its controlled
+external host records real system click/wheel delivery while a separate GPUI
+process uses production overlay content. HUD and Interactive probes have
+15-second deadlines, require a visible frame, and require complete cleanup.
+Each input batch checks the foreground and target process; an unavailable or
+occluded desktop is an environment failure, never a passing input result.
+The separate `-Suite lifecycle` run attaches/detaches 100 times in at most
+60 seconds and checks content release, terminal events and worker/hook/binding
+counts after every cycle. Screenshots are saved under `target/probe-*.bmp`.
+The lifecycle suite also closes the real host, the native owner window and the
+native overlay window in separate bounded runs, checking terminal diagnostics
+and resource release through the production facade.
+These checks do not replace the spec's 100%/150%/200% and cross-monitor visual,
+IME, clipboard, or measured drag-latency acceptance evidence.
+
 ## Application exit policy
 
 `app-ui` owns an application-lifetime `on_window_closed` subscription. After
 GPUI removes a closed window, the callback checks the authoritative application
-window collection and calls `cx.quit()` only when it is empty. The subscription
+window collection and calls `overlay::prepare_quit` when it is empty. The subscription
 is retained by an App-global lifecycle owner rather than detached.
 
 This policy makes closing the last window an application contract instead of an
-assumption about the current GPUI Windows backend. If the template later owns
-resources that require confirmation, drain, flush, join, or cleanup, this quit
-request must enter the shared shutdown coordinator before process exit.
+assumption about the current GPUI Windows backend. The coordinator waits for
+overlay cleanup before its completion callback calls `cx.quit()`. Explicit quit
+mode prevents backend auto-exit from bypassing that wait.
 
 ## Specialized release checklist
 

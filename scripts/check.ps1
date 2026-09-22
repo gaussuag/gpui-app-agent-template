@@ -46,6 +46,7 @@ try {
     Write-Host "==> built Windows product identity ($productProfile)"
     & (Join-Path $PSScriptRoot "check-product.ps1") -Profile $productProfile -ArtifactPath $artifactPath
     & (Join-Path $PSScriptRoot "smoke.ps1") -SkipBuild
+    & (Join-Path $PSScriptRoot "smoke-overlay.ps1")
 }
 finally {
     Pop-Location

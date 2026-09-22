@@ -58,6 +58,22 @@ The sample window demonstrates a reducer-style state module, synchronous UI
 commands, background work, cancellation ownership, and revision-gated result
 application.
 
+The overlay demo selects an external window and attaches ordinary Kit content
+to its client area:
+
+```powershell
+cargo run --locked -p desktop -- --overlay-demo
+```
+
+Refresh the list, select a host, attach, then return to that host to see the HUD.
+HUD mode passes clicks and wheel input through; Interactive mode accepts input
+in the overlay. Esc first lets the focused component dismiss its transient
+state, then returns to HUD. The control window can detach or switch hosts, and
+its ordinary-window preview uses the same business content. `--overlay-demo`
+and `--smoke-test` cannot be combined. See the
+[overlay contract](docs/overlay-gpui-spec.md) and
+[current verification record](docs/overlay-implementation-progress.md).
+
 ## Verify
 
 ```powershell
@@ -80,6 +96,8 @@ Run a focused layer while developing:
 .\scripts\test.ps1 -Suite core
 .\scripts\test.ps1 -Suite gpui
 .\scripts\smoke.ps1
+.\scripts\smoke-overlay.ps1 # controlled external host, real input, resource endurance
+.\scripts\smoke-overlay.ps1 -Suite lifecycle # no synthetic input required
 .\scripts\test-generated-project.ps1 # template generation/build integration
 ```
 
@@ -89,6 +107,7 @@ Run a focused layer while developing:
 crates/app-core/   Domain state and effects; never depends on GPUI
 crates/app-ui/     The only GPUI Kit adapter
 crates/desktop/    Windows executable and process-level startup
+crates/overlay-win32/ Native overlay adapter; all Win32 code stays under src/windows
 docs/              Architecture, decisions, templates, and Agent guidance
 scripts/           Canonical local verification and run commands
 ```

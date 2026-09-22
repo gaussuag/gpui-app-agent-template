@@ -6,6 +6,7 @@
 desktop -> app-ui -> app-core
               |
               +----> gpui-kit (GPUI + base + component + assets)
+              +----> overlay-win32 (native overlay adapter)
 ```
 
 `app-core` is a deep module: callers learn the `dispatch`/`snapshot` interface,
@@ -46,7 +47,7 @@ waits on channels, sleeps, or acquires long-lived locks.
 | Resource | Owner | Start | Cancel/stale identity | Deadline | Join/flush | Error destination | Owner drop/late cleanup |
 |---|---|---|---|---|---|---|---|
 | Main window | GPUI application | `app-ui::run` or finite `run_smoke` | GPUI removes the closed window; the application policy requests quit only when no windows remain | 15-second native smoke deadlines for first-frame self-check and interactive last-window close | No application data to flush | Startup error to stderr; smoke returns failure; see [the startup failure baseline](#startup-failure-baseline) | GPUI releases the window; no product resource currently outlives it |
-| Last-window close `Subscription` | App-global `ApplicationLifecycle` | `run_with_mode` after GPUI Kit initialization | One application-lifetime observer; no stale identity required | Event-driven on the GPUI foreground context | Dropping the App-global owner unsubscribes; no flush | Infallible zero-window check; process-level timeout reports a missing exit | Observer checks `cx.windows().is_empty()` and calls `cx.quit()`; App shutdown drops the owner |
+| Last-window close `Subscription` | App-global `ApplicationLifecycle` | `run_with_mode` after GPUI Kit initialization | One application-lifetime observer; no stale identity required | Event-driven on the GPUI foreground context | Dropping the App-global owner unsubscribes; overlay coordinator finishes native joins | Infallible zero-window check; process-level timeout reports a missing exit | Observer checks `cx.windows().is_empty()` and enters `overlay::prepare_quit`; completion calls `cx.quit()` |
 | Demo work `Task` | `TemplateView` | `Effect::RunWork` | Replaced/reset; request revision rejects a late result | No external wait; bounded deterministic CPU loop | Dropped, not joined; no external artifact | Infallible demo; a real adapter extends typed `WorkStatus` with recovery | Entity drop cancels the UI task; late revision cannot commit |
 | Domain state | `TemplateView` | Entity construction | Reset increments revision | In-process transition | Nothing to flush | Commands return explicit effects | Entity drop releases state |
 
@@ -55,10 +56,19 @@ stop/cleanup path in code; they do not each need a row here. Document complex
 resource interactions and shutdown ordering near their implementation or in the
 developer's design. Update this overview when application-wide ownership changes.
 
-The sample has no fallible external I/O and therefore does not demonstrate a
-complete error or shutdown coordinator. Introduce those protocols with the first
-real resource that requires recovery, flush, join, or confirmation; do not infer
-them from this CPU-only example.
+The template's CPU-only work is canceled on entity drop. Overlay sessions also
+own native hooks and event-pump threads, so their App-global runtime retains
+them through asynchronous cleanup. The last-window policy calls
+`overlay::prepare_quit`, which stops all sessions and invokes the quit callback
+only after their workers finish. GPUI explicit quit mode keeps the coordinator
+alive after the final native window disappears. See
+[ADR 0009](decisions/0009-native-overlay-lifecycle.md).
+
+`OverlayWindow<V>` is a session handle with a weak content reference. The real
+Kit Root owns the surface and business entity. Handles can outlive Closed for
+diagnostics, but cannot retain or update closed content. Host discovery and
+native worker joins run in background tasks; the foreground driver checks
+session liveness, host generation and sequence before publishing state.
 
 ### Startup failure baseline
 

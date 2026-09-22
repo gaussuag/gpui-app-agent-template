@@ -12,8 +12,11 @@ test-support = ["gpui-kit/test-support"]
 [dependencies]
 app-core.workspace = true
 gpui-kit.workspace = true
+overlay-win32 = { path = "../overlay-win32" }
+raw-window-handle = "=0.6.2"
 
 [dev-dependencies]
+overlay-win32 = { path = "../overlay-win32", features = ["test-support"] }
 gpui-kit = { workspace = true, features = ["test-support"] }
 
 [lints]
