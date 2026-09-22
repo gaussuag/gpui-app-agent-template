@@ -5,6 +5,13 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+Host-relative presentation implementation has reached its stage-zero primitive
+experiment: [evidence and runnable probe](overlay-presentation-stage0.md).
+The asynchronous foreign-host reorder reproduced execution after intent expiry;
+that candidate is rejected under the proposed guarantee. Production behavior
+is unchanged. Stages 1–3 await a decision on host cooperation versus accepting
+late effects; the failure is not a manual-test deferral.
+
 User-requested margins extension is implemented: `OverlayOptions.margins` and
 `OverlayWindow::set_margins` accept top/right/bottom/left whole logical pixels.
 Defaults remain zero; the host DPI determines physical insets. The Demo has four

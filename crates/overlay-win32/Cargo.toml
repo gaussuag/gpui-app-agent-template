@@ -9,6 +9,10 @@ publish = false
 [features]
 test-support = []
 
+[[example]]
+name = "presentation-probe"
+required-features = ["test-support"]
+
 [dependencies]
 raw-window-handle = "=0.6.2"
 

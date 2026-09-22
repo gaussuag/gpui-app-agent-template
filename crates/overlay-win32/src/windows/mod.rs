@@ -31,6 +31,10 @@ mod fixture;
 mod geometry;
 mod host;
 mod margins_test;
+#[cfg(feature = "test-support")]
+mod presentation_probe;
+#[cfg(feature = "test-support")]
+pub use presentation_probe::run_presentation_probe;
 mod watch;
 use crate::InputMode;
 #[cfg(feature = "test-support")]

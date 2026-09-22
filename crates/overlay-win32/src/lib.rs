@@ -14,6 +14,8 @@ pub use unsupported::{
 };
 #[cfg(all(windows, feature = "test-support"))]
 pub use windows::DpiTestWindow;
+#[cfg(all(windows, feature = "test-support"))]
+pub use windows::run_presentation_probe;
 
 #[cfg(windows)]
 pub use windows::{
