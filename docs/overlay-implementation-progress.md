@@ -5,6 +5,12 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+The user also confirmed all three manual workflow checks passed: content
+retention across HUD/Interactive switches, hide/restore alignment, and host
+switching/host-close/control-window-close without residual overlays. This is
+user-reported acceptance on the current environment; it does not certify the
+deferred DPI/multi-monitor or 60 Hz performance requirements.
+
 User-reported manual acceptance: clipboard copy/delete/paste comparison passed
 without issues in ordinary preview and Interactive Overlay. This is manual
 evidence, not an automated OS-clipboard test. The user requested that unified
