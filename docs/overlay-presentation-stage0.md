@@ -24,7 +24,7 @@ cargo run --locked -p overlay-win32 --features test-support --example presentati
 遮挡窗、第三窗口；不使用原生 owner/parent，不使用生产 binding，也不注入用户进程。
 宿主在自己线程通过阻塞读 stdin 暂停消息泵，以握手确认 HWND；恢复命令才重新泵消息。
 控制进程核对 HWND 的进程身份，每次实验结束或报错均终止并回收自己的子进程和读取线程。
-协议等待最多 5 秒；层级遍历最多 512 个窗口。窗口均不激活，不读取其他窗口标题。
+协议等待最多 5 秒；层级遍历最多 64 个窗口。窗口均不激活，不读取其他窗口标题。
 
 实验步骤：
 
@@ -50,6 +50,7 @@ PRESENTATION_CANDIDATE_REJECTED: queued host reorder executed after intent expir
 
 对照组宿主没有跨越遮挡窗；实验组恢复后跨越了遮挡窗。第三窗口仍在组合上面，
 **没有观测或声称“抢走第三窗口焦点”**。12 微秒仅为一次提交调用耗时，不是性能验收结果。
+审查后将遍历预算统一为 64，再运行一次仍得到相同反例；该次提交耗时 15 微秒。
 
 退出码 0 仅表示实验采集完成，绝不表示候选或阶段 0 通过；必须读取候选状态标记。
 若未观察到迟到，输出 `PRESENTATION_CANDIDATE_UNPROVEN`，同样不通过架构门槛。
@@ -74,7 +75,9 @@ PRESENTATION_CANDIDATE_REJECTED: queued host reorder executed after intent expir
 - Windows x64 示例编译、运行成功；得到上述候选拒绝证据。
 - `overlay-win32` 全目标、test-support 严格 Clippy 通过。
 - `overlay-win32` 的 3 项单元测试通过；这些没有证明新的完整 presentation 行为。
-- 文档链接和 staged diff 检查、双轴审查结果在交付时记录。
+- 默认生产 feature 编译、格式、文档链接和 staged diff 检查通过。
+- 双轴审查：Standards 无问题；Spec 指出遍历预算与方案不一致，已统一为 64。
+  审查确认没有把原语反例当成完整阶段 0 或功能交付；后续阶段仍未完成。
 - 统一 repository/generated 回归继续按用户先前要求延期。
 
 待后续实现/真实桌面验收：后台露出区域首击与输入保持、真实前台切换、GPUI 捕获/IME、

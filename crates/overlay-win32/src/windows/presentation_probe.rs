@@ -187,7 +187,7 @@ fn above(first: HWND, second: HWND) -> ProbeResult<bool> {
     // enumerated third-party windows. A changing chain fails the experiment.
     unsafe {
         let mut cursor = first;
-        for _ in 0..512 {
+        for _ in 0..64 {
             match GetWindow(cursor, GW_HWNDNEXT) {
                 Ok(next) if !next.is_invalid() => {
                     if next == second {
