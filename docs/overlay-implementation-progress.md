@@ -42,7 +42,9 @@ Verification of this extension:
   substitute for cross-process input/performance evidence.
 - Strict Clippy and the Windows x64 Demo build passed. Initial dual-axis review found no behavioral or standards defects; the missing
   bounded diagnostic instrumentation identified by the Spec review was subsequently added.
-  Remaining desktop/performance acceptance is explicit.
+  Both axes re-reviewed the diagnostic change: Standards 0 actionable findings;
+  Spec 0 confirmed defects, instrumentation gap closed. Remaining desktop/performance
+  acceptance is explicit. No unified/generated gate was run or claimed.
 - New `scripts/smoke-overlay.ps1 -Suite presentation` uses a controlled third
   window and actual GPUI input, requiring natural occlusion, host promotion,
   retained foreground, exactly one increment and focused text input. The initial

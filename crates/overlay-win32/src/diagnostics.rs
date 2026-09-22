@@ -57,6 +57,7 @@ impl PresentationDiagnostics {
     pub fn recent(&self) -> impl Iterator<Item = &PresentationRecord> {
         (0..32).filter_map(move |offset| self.records[(self.next + offset) % 32].as_ref())
     }
+    #[cfg(any(windows, test))]
     pub(crate) fn record(&mut self, record: PresentationRecord) {
         self.reconciliations = self.reconciliations.saturating_add(1);
         if let Some(cpu_time) = record.cpu_time {
