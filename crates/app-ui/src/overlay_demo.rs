@@ -369,12 +369,13 @@ impl Render for OverlayDemo {
             .as_ref()
             .map(|state| {
                 format!(
-                    "当前会话：{:?} · {:?} · PID {} · HWND 0x{:X}\n{:?}",
+                    "当前会话：{:?} · {:?} · PID {} · HWND 0x{:X}\n隐藏原因：{:?} · 宿主模态暂停输入：{}",
                     state.phase,
                     state.input_mode,
                     state.host.process_id(),
                     state.host.raw(),
-                    state.hidden_reason
+                    state.hidden_reason,
+                    state.input_suspended
                 )
             })
             .unwrap_or_else(|| "尚未附着".into());
@@ -405,7 +406,7 @@ impl Render for OverlayDemo {
             .child(
                 div()
                     .text_sm()
-                    .child("控制窗口在前台时 Overlay 会隐藏。附着或切换模式后，请切回宿主查看。"),
+                    .child("Overlay 随宿主层级显示；失焦不隐藏，其他窗口可遮挡。点击交互内容可带宿主一起前置。"),
             )
             .child(
                 h_flex().gap_2().child(Input::new(&self.filter)).child(

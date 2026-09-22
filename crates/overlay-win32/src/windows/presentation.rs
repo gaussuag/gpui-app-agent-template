@@ -1,0 +1,226 @@
+use super::*;
+use crate::presentation::{Placement, Promotion, placement};
+use ::windows::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, IsWindowEnabled};
+use std::time::{Duration, Instant};
+
+impl WindowBinding {
+    /// Local invalidation is independent of the host watch's sequence. Callback
+    /// effects are consumed outside GPUI borrows; self-generated messages cause
+    /// one subsequent observation, which converges to a no-op.
+    pub fn presentation_changed(&self) -> bool {
+        self.callback.dirty.get()
+    }
+
+    pub fn set_change_signal(&self, signal: crate::ChangeSignal) {
+        *self.callback.changed.borrow_mut() = Some(signal);
+    }
+
+    pub fn take_warning(&mut self) -> Option<crate::OverlayError> {
+        self.warning.take()
+    }
+
+    pub(super) fn warn_unknown_promotion(&mut self) {
+        self.warning = Some(host::error(
+            crate::ErrorKind::TrackingFailed,
+            "Host promotion completion is unknown. Following continues; reattach to allow new promotion requests. A submitted request may still execute later.",
+        ));
+    }
+
+    pub(super) fn present(
+        &mut self,
+        id: crate::HostWindowId,
+        state: &mut crate::HostSnapshot,
+    ) -> Result<(), Error> {
+        let now = Instant::now();
+        let target = HWND(id.raw() as *mut _);
+        let intent = self.callback.intent.get();
+        let epoch = self.callback.cancel_epoch.get();
+        // SAFETY: own window on its creating thread. Host identity was sampled
+        // immediately before entry; only one explicit gesture permits a foreign
+        // asynchronous Z-order write. No owner/parent or input queues are changed.
+        unsafe {
+            let host_available = state.terminal.is_none()
+                && state.visibility_reason.is_none()
+                && !state.input_suspended
+                && self.callback.mode.get() == InputMode::Interactive;
+            let eligible = host_available && GetForegroundWindow() == self.hwnd;
+            let adjacent = visible_neighbor(self.hwnd, GW_HWNDNEXT)? == Some(target);
+            if self
+                .promotion
+                .observe(now, eligible && self.promotion_epoch == epoch, adjacent)
+            {
+                self.warn_unknown_promotion();
+            }
+
+            let host_topmost = topmost(target);
+            if intent.is_some_and(|(created, generation)| {
+                generation == epoch
+                    && now.saturating_duration_since(created) <= Duration::from_millis(250)
+            }) && eligible
+                && !adjacent
+                && host_topmost == topmost(self.hwnd)
+                && self.promotion.begin(now)
+            {
+                self.promotion_epoch = epoch;
+                // Accepted limitation: once posted this operation cannot be
+                // cancelled. Never resend from a timer or a foreground event.
+                if let Err(error) = SetWindowPos(
+                    target,
+                    Some(self.hwnd),
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_ASYNCWINDOWPOS
+                        | SWP_NOACTIVATE
+                        | SWP_NOMOVE
+                        | SWP_NOSIZE
+                        | SWP_NOOWNERZORDER,
+                ) {
+                    self.promotion = Promotion::Idle;
+                    self.warning = Some(crate::OverlayError {
+                        kind: crate::ErrorKind::AccessDenied,
+                        native_code: Some(error.code().0),
+                        message: "Windows declined host promotion; click the host to continue."
+                            .into(),
+                    });
+                }
+            }
+
+            if !host_available
+                || eligible
+                || intent.is_some_and(|(created, generation)| {
+                    generation != epoch
+                        || now.saturating_duration_since(created) > Duration::from_millis(250)
+                })
+            {
+                self.callback.intent.set(None);
+            }
+            self.callback.suspended.set(state.input_suspended);
+            if IsWindowEnabled(self.hwnd).as_bool() == state.input_suspended {
+                if state.input_suspended && GetCapture() == self.hwnd {
+                    let _ = ReleaseCapture();
+                }
+                let _ = EnableWindow(self.hwnd, !state.input_suspended);
+            }
+            if !self.usable() {
+                return Err(Error::from_hresult(E_HANDLE));
+            }
+            if state.terminal.is_some() || state.visibility_reason.is_some() {
+                if IsWindowVisible(self.hwnd).as_bool() {
+                    self.hide();
+                }
+                return Ok(());
+            }
+
+            if topmost(self.hwnd) != host_topmost {
+                // Hide before band transition: never expose an intermediate
+                // global-topmost placement while moving between bands.
+                self.hide();
+                if !self.usable() {
+                    return Err(Error::from_hresult(E_HANDLE));
+                }
+                SetWindowPos(
+                    self.hwnd,
+                    Some(if host_topmost {
+                        HWND_TOPMOST
+                    } else {
+                        HWND_NOTOPMOST
+                    }),
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
+                )?;
+                if !self.usable() {
+                    return Err(Error::from_hresult(E_HANDLE));
+                }
+            }
+
+            let order = if self.promotion.hold_anchor() {
+                Placement::Unchanged
+            } else {
+                let previous = visible_neighbor(target, GW_HWNDPREV)?;
+                let predecessor = if previous == Some(self.hwnd) {
+                    visible_neighbor(self.hwnd, GW_HWNDPREV)?
+                } else {
+                    previous
+                };
+                placement(
+                    previous == Some(self.hwnd),
+                    true,
+                    host_topmost,
+                    predecessor.map(|window| (window.0 as usize, topmost(window))),
+                )
+            };
+            let r = state.physical_overlay_rect;
+            let mut actual = RECT::default();
+            let position_matches = GetWindowRect(self.hwnd, &mut actual).is_ok()
+                && (actual.left, actual.top, actual.right, actual.bottom)
+                    == (r.left, r.top, r.right, r.bottom);
+            let visible = IsWindowVisible(self.hwnd).as_bool();
+            if position_matches && visible && order == Placement::Unchanged {
+                return Ok(());
+            }
+            let mut flags = SWP_NOACTIVATE;
+            if !visible {
+                flags |= SWP_SHOWWINDOW;
+            }
+            if position_matches {
+                flags |= SWP_NOMOVE | SWP_NOSIZE;
+            }
+            let after = match order {
+                Placement::Unchanged => {
+                    flags |= SWP_NOZORDER;
+                    HWND_TOP
+                }
+                Placement::Top => {
+                    if host_topmost {
+                        HWND_TOPMOST
+                    } else {
+                        HWND_TOP
+                    }
+                }
+                Placement::After(raw) => HWND(raw as *mut _),
+            };
+            SetWindowPos(
+                self.hwnd,
+                Some(after),
+                r.left,
+                r.top,
+                r.width(),
+                r.height(),
+                flags,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+// SAFETY: a read-only OS query on an observed window; callers revalidate host
+// identity and handle disappearance through their apply failure path.
+unsafe fn topmost(hwnd: HWND) -> bool {
+    unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 }
+}
+
+/// Invisible helper windows (including system-created IME owners) do not define
+/// visual adjacency. Bound traversal; never rearrange those helper windows.
+fn visible_neighbor(mut hwnd: HWND, direction: GET_WINDOW_CMD) -> Result<Option<HWND>, Error> {
+    // SAFETY: read-only bounded desktop traversal. No window memory is accessed.
+    unsafe {
+        for _ in 0..64 {
+            let Ok(next) = GetWindow(hwnd, direction) else {
+                return Ok(None);
+            };
+            if next.is_invalid() {
+                return Ok(None);
+            }
+            if IsWindowVisible(next).as_bool() {
+                return Ok(Some(next));
+            }
+            hwnd = next;
+        }
+    }
+    Err(Error::from_hresult(E_FAIL))
+}

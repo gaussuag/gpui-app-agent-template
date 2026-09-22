@@ -37,6 +37,13 @@ impl std::error::Error for NativeError {}
 
 pub struct WindowBinding(std::marker::PhantomData<std::rc::Rc<()>>);
 impl WindowBinding {
+    pub fn presentation_changed(&self) -> bool {
+        false
+    }
+    pub fn set_change_signal(&self, _: ChangeSignal) {}
+    pub fn take_warning(&mut self) -> Option<OverlayError> {
+        None
+    }
     pub fn usable(&self) -> bool {
         false
     }

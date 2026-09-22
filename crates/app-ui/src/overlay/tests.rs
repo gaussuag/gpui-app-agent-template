@@ -13,6 +13,76 @@ struct Content {
 }
 
 #[gpui_kit::test]
+fn modal_suspension_keeps_visibility_mode_and_content_and_releases_capture(
+    cx: &mut TestAppContext,
+) {
+    let (owner, host, backend) = setup(cx);
+    let overlay = open(cx, owner, host);
+    cx.run_until_parked();
+    assert!(
+        cx.update(|cx| overlay.set_input_mode(InputMode::Interactive, cx))
+            .is_ok()
+    );
+    cx.run_until_parked();
+    let identity = cx
+        .update(|cx| overlay.content(cx))
+        .unwrap_or_else(|e| panic!("{e}"))
+        .entity_id();
+    assert!(
+        cx.update(|cx| overlay.update(cx, |_, window, _| window
+            .capture_pointer(gpui_kit::HitboxId::placeholder())))
+            .is_ok()
+    );
+    for (sequence, suspended) in [(2, true), (3, false)] {
+        let mut sample = backend.sample(host, sequence);
+        sample.input_suspended = suspended;
+        backend.submit(sample);
+        cx.run_until_parked();
+        let state = cx
+            .update(|cx| overlay.snapshot(cx))
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(state.input_mode, InputMode::Interactive);
+        assert_eq!(state.input_suspended, suspended);
+        assert_eq!(state.hidden_reason, None);
+        assert!(!backend.hidden.load(Ordering::SeqCst));
+        assert_eq!(
+            cx.update(|cx| overlay.update(cx, |_, window, _| window.captured_hitbox()))
+                .ok(),
+            Some(None)
+        );
+        assert_eq!(
+            cx.update(|cx| overlay.content(cx))
+                .unwrap_or_else(|e| panic!("{e}"))
+                .entity_id(),
+            identity
+        );
+    }
+    assert!(cx.update(|cx| overlay.close(cx)).is_ok());
+    cx.run_until_parked();
+}
+
+#[gpui_kit::test]
+fn unchanged_native_observations_do_not_publish_business_updates(cx: &mut TestAppContext) {
+    let (owner, host, backend) = setup(cx);
+    let overlay = open(cx, owner, host);
+    cx.run_until_parked();
+    let initial = cx
+        .update(|cx| overlay.snapshot(cx))
+        .unwrap_or_else(|e| panic!("{e}"));
+    for sequence in 2..20 {
+        backend.submit(backend.sample(host, sequence));
+        cx.run_until_parked();
+    }
+    let current = cx
+        .update(|cx| overlay.snapshot(cx))
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(initial.revision, current.revision);
+    assert_eq!(initial.native_updates, current.native_updates);
+    assert!(cx.update(|cx| overlay.close(cx)).is_ok());
+    cx.run_until_parked();
+}
+
+#[gpui_kit::test]
 fn owner_close_hides_without_advancing_a_poll_timer(cx: &mut TestAppContext) {
     let (owner, host, backend) = setup(cx);
     let overlay = open(cx, owner, host);
@@ -46,7 +116,7 @@ fn suspension_releases_gpui_pointer_capture(cx: &mut TestAppContext) {
         );
         if hidden {
             let mut sample = backend.sample(host, 2);
-            sample.visibility_reason = Some(HiddenReason::Background);
+            sample.visibility_reason = Some(HiddenReason::Invisible);
             backend.submit(sample);
         } else {
             assert!(
@@ -154,7 +224,7 @@ fn hide_show_and_mode_changes_keep_the_original_business_entity(cx: &mut TestApp
     .unwrap_or_else(|error| panic!("{error}"));
     for (sequence, reason) in [
         (2, Some(HiddenReason::Minimized)),
-        (3, Some(HiddenReason::Background)),
+        (3, Some(HiddenReason::Invisible)),
         (4, None),
     ] {
         let mut sample = backend.sample(host, sequence);

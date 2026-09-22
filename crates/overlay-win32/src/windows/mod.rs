@@ -12,7 +12,11 @@ use ::windows::{
 };
 use raw_window_handle::{RawWindowHandle, WindowHandle};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{cell::Cell, marker::PhantomData, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    marker::PhantomData,
+    rc::Rc,
+};
 static WORKERS: AtomicUsize = AtomicUsize::new(0);
 static HOOKS: AtomicUsize = AtomicUsize::new(0);
 static BINDINGS: AtomicUsize = AtomicUsize::new(0);
@@ -31,8 +35,12 @@ mod fixture;
 mod geometry;
 mod host;
 mod margins_test;
+mod presentation;
+mod presentation_input;
 #[cfg(feature = "test-support")]
 mod presentation_probe;
+#[cfg(test)]
+mod presentation_test;
 #[cfg(feature = "test-support")]
 pub use presentation_probe::run_presentation_probe;
 mod watch;
@@ -50,7 +58,10 @@ pub struct WindowBinding {
     original_style: isize,
     callback: Rc<BindingState>,
     last: Option<crate::HostSnapshot>,
-    last_margins: crate::OverlayMargins,
+    promotion: crate::presentation::Promotion,
+    promotion_epoch: u64,
+    warning: Option<crate::OverlayError>,
+    order_failed: bool,
     initialized: bool,
     poisoned: bool,
     _thread: PhantomData<Rc<()>>,
@@ -60,6 +71,20 @@ struct BindingState {
     live: Cell<bool>,
     mode: Cell<InputMode>,
     dpi_pending: Cell<bool>,
+    dirty: Cell<bool>,
+    cancel_epoch: Cell<u64>,
+    suspended: Cell<bool>,
+    intent: Cell<Option<(std::time::Instant, u64)>>,
+    changed: RefCell<Option<crate::ChangeSignal>>,
+}
+impl BindingState {
+    fn invalidate(&self) {
+        self.dirty.set(true);
+        let signal = self.changed.borrow().clone();
+        if let Some(signal) = signal {
+            signal.notify();
+        }
+    }
 }
 const SUBCLASS_ID: usize = 0x47505549;
 
@@ -75,6 +100,33 @@ unsafe extern "system" fn subclass(
 ) -> LRESULT {
     unsafe {
         let state = &*(data as *const BindingState);
+        if message == WM_MOUSEACTIVATE
+            && state.mode.get() == InputMode::Interactive
+            && !state.suspended.get()
+            && lp.0 as u16 == HTCLIENT as u16
+            && matches!(
+                (lp.0 >> 16) as u16 as u32,
+                WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_XBUTTONDOWN
+            )
+        {
+            state
+                .intent
+                .set(Some((std::time::Instant::now(), state.cancel_epoch.get())));
+            state.invalidate();
+        }
+        if message == WM_ACTIVATE && wp.0 as u16 == WA_INACTIVE as u16 {
+            state.intent.set(None);
+            state
+                .cancel_epoch
+                .set(state.cancel_epoch.get().wrapping_add(1));
+            state.invalidate();
+        }
+        if matches!(
+            message,
+            WM_WINDOWPOSCHANGED | WM_ENABLE | WM_DPICHANGED | WM_ACTIVATE
+        ) {
+            state.invalidate();
+        }
         if message == WM_DPICHANGED {
             // GPUI updates its platform scale while forwarding this message,
             // but an unchanged suggested RECT need not generate WM_SIZE.
@@ -114,40 +166,28 @@ impl WindowBinding {
             if last.generation != host.generation() {
                 return Err(Error::from_hresult(E_INVALIDARG));
             }
-            if last.terminal.is_some()
-                || sequence < last.sequence
-                || (sequence == last.sequence && self.last_margins == margins)
-            {
+            if last.terminal.is_some() || sequence < last.sequence {
                 return Ok(last.clone());
             }
         }
         let _dpi = host::DpiScope::enter();
-        let state = host::sample(host, Some(self.hwnd), sequence).with_margins(margins);
-        // SAFETY: only this binding's own window is moved. Sampling and apply
-        // execute on its creating thread, outside borrowed GPUI contexts.
-        unsafe {
-            if state.terminal.is_some() || state.visibility_reason.is_some() {
-                if IsWindowVisible(self.hwnd).as_bool() {
-                    self.hide();
+        self.callback.dirty.set(false);
+        let mut state = host::sample(host, Some(self.hwnd), sequence).with_margins(margins);
+        match self.present(host, &mut state) {
+            Ok(()) => self.order_failed = false,
+            Err(error) if self.usable() => {
+                self.hide();
+                state.visibility_reason = Some(crate::HiddenReason::OrderUnavailable);
+                if !self.order_failed {
+                    self.warning = Some(crate::OverlayError {
+                        kind: crate::ErrorKind::TrackingFailed,
+                        native_code: Some(error.code().0),
+                        message: "Overlay order is temporarily unavailable; following will retry automatically.".into(),
+                    });
                 }
-            } else {
-                let r = state.physical_overlay_rect;
-                let mut actual = RECT::default();
-                let position_matches = GetWindowRect(self.hwnd, &mut actual).is_ok()
-                    && (actual.left, actual.top, actual.right, actual.bottom)
-                        == (r.left, r.top, r.right, r.bottom);
-                if !position_matches || !IsWindowVisible(self.hwnd).as_bool() {
-                    SetWindowPos(
-                        self.hwnd,
-                        Some(HWND_TOPMOST),
-                        r.left,
-                        r.top,
-                        r.width(),
-                        r.height(),
-                        SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                    )?;
-                }
+                self.order_failed = true;
             }
+            Err(error) => return Err(error),
         }
         if self.usable() && self.callback.dpi_pending.replace(false) {
             // SAFETY: apply_host runs on the creating thread outside GPUI
@@ -170,7 +210,6 @@ impl WindowBinding {
                 );
             }
         }
-        self.last_margins = margins;
         self.last = Some(state.clone());
         Ok(state)
     }
@@ -192,6 +231,11 @@ impl WindowBinding {
                 live: Cell::new(true),
                 mode: Cell::new(InputMode::Passthrough),
                 dpi_pending: Cell::new(false),
+                dirty: Cell::new(true),
+                cancel_epoch: Cell::new(0),
+                suspended: Cell::new(false),
+                intent: Cell::new(None),
+                changed: RefCell::new(None),
             });
             let callback_reference = Rc::into_raw(callback.clone());
             if !SetWindowSubclass(
@@ -214,7 +258,10 @@ impl WindowBinding {
                     callback
                 },
                 last: None,
-                last_margins: crate::OverlayMargins::default(),
+                promotion: Default::default(),
+                promotion_epoch: 0,
+                warning: None,
+                order_failed: false,
                 initialized: false,
                 poisoned: false,
                 _thread: PhantomData,
@@ -232,7 +279,13 @@ impl WindowBinding {
             if self.initialized && self.callback.mode.get() == mode {
                 return Ok(());
             }
-            let mut style = self.original as u32 | WS_EX_TOOLWINDOW.0;
+            self.callback.intent.set(None);
+            self.callback
+                .cancel_epoch
+                .set(self.callback.cancel_epoch.get().wrapping_add(1));
+            self.callback.invalidate();
+            let mut style = (self.original as u32 & !WS_EX_TOPMOST.0) | WS_EX_TOOLWINDOW.0;
+            style |= GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0;
             if mode == InputMode::Passthrough {
                 style |= WS_EX_LAYERED.0 | WS_EX_TRANSPARENT.0 | WS_EX_NOACTIVATE.0;
             }
@@ -242,7 +295,7 @@ impl WindowBinding {
                 write_style(
                     self.hwnd,
                     GWL_STYLE,
-                    (WS_POPUP.0 | (current as u32 & WS_VISIBLE.0)) as isize,
+                    (WS_POPUP.0 | (current as u32 & (WS_VISIBLE.0 | WS_DISABLED.0))) as isize,
                 )?;
                 write_style(self.hwnd, GWL_EXSTYLE, style as isize)?;
                 if mode == InputMode::Passthrough {
@@ -267,6 +320,9 @@ impl WindowBinding {
             }
             self.callback.mode.set(mode);
             self.initialized = true;
+            if self.promotion == crate::presentation::Promotion::Unknown {
+                self.warn_unknown_promotion();
+            }
             if mode == InputMode::Passthrough && GetCapture() == self.hwnd {
                 let _ = ReleaseCapture();
             }
@@ -328,6 +384,7 @@ impl WindowBinding {
     pub fn hide(&mut self) {
         // SAFETY: creating thread only, checked against native destruction marker.
         unsafe {
+            self.callback.intent.set(None);
             if self.callback.live.get() {
                 if GetCapture() == self.hwnd {
                     let _ = ReleaseCapture();
@@ -365,12 +422,12 @@ unsafe fn flush_style(hwnd: HWND) -> Result<(), Error> {
     unsafe {
         SetWindowPos(
             hwnd,
-            Some(HWND_TOPMOST),
+            None,
             0,
             0,
             0,
             0,
-            SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE,
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE,
         )
     }
 }

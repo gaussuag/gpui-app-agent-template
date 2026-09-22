@@ -1,6 +1,8 @@
 //! Native overlay adapter. All Windows knowledge lives in `windows`.
 mod margins;
 pub use margins::OverlayMargins;
+#[cfg(any(windows, test))]
+mod presentation;
 mod signal;
 pub use signal::ChangeSignal;
 #[cfg(not(windows))]
@@ -130,7 +132,7 @@ impl std::error::Error for OverlayError {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HiddenReason {
-    Background,
+    OrderUnavailable,
     Minimized,
     Invisible,
     Cloaked,
@@ -148,5 +150,7 @@ pub struct HostSnapshot {
     pub physical_overlay_rect: PhysicalRect,
     pub visibility_reason: Option<HiddenReason>,
     pub dpi: u32,
+    /// Host disabled by a modal interaction; requested input mode is retained.
+    pub input_suspended: bool,
     pub terminal: Option<OverlayError>,
 }

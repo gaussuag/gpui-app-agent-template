@@ -74,9 +74,13 @@ and `--smoke-test` cannot be combined. See the
 [overlay contract](docs/overlay-gpui-spec.md) and
 [current verification record](docs/overlay-implementation-progress.md).
 
-The proposed [host-relative presentation design](docs/overlay-host-presentation-design.md)
+The [host-relative presentation design](docs/overlay-host-presentation-design.md)
 describes inactive visibility, Z-order following, and user-triggered host promotion.
-It is a design proposal with native validation gates, not implemented behavior.
+The overlay remains visible while its host is inactive, follows its Z-order band,
+and is naturally occluded by other windows. Clicking interactive content requests
+one asynchronous host promotion. Already-submitted requests can execute late;
+an unknown result requires reattachment before another promotion. Real desktop
+acceptance is tracked separately from unit tests.
 
 The `--overlay-demo` control window has a “四角定位标记：开 / 关” option,
 off by default. It updates attached demo content without reattaching; the

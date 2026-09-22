@@ -35,6 +35,9 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                 None
             }
         };
+        if let Some(binding) = binding.as_ref() {
+            binding.set_change_signal(changed.clone());
+        }
         let mut watch =
             if let Some(factory) = binding.as_ref().map(|binding| binding.watch_factory()) {
                 let native_changed = changed.clone();
@@ -55,7 +58,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
         let mut sequence = 0;
         let mut applied_margins = None;
         let mut saved_focus = None;
-        let mut visible = false;
+        let mut available = false;
         while failure.is_none() {
             let request = weak.update(cx, |session, cx| {
                 let owner_alive = cx.windows().contains(&session.owner);
@@ -155,7 +158,9 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                 .as_ref()
                 .map(|value| value.sampled_at)
                 .unwrap_or_else(std::time::Instant::now);
-            let should_apply = update.is_some() || applied_margins != Some(margins);
+            let should_apply = update.is_some()
+                || applied_margins != Some(margins)
+                || native.presentation_changed();
             if let Some(update) = update {
                 sequence = update.sequence;
 
@@ -172,8 +177,9 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             break;
                         }
                         applied_margins = Some(margins);
-                        let now_visible = actual.visibility_reason.is_none();
-                        if visible && !now_visible {
+                        let now_available =
+                            actual.visibility_reason.is_none() && !actual.input_suspended;
+                        if available && !now_available {
                             let focus = window
                                 .update(cx, |_, window, cx| super::root::suspend(window, cx))
                                 .ok()
@@ -181,14 +187,14 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             if focus.is_some() {
                                 saved_focus = focus;
                             }
-                        } else if !visible
-                            && now_visible
+                        } else if !available
+                            && now_available
                             && mode == native_bridge::InputMode::Interactive
                             && let Some(focus) = saved_focus.take()
                         {
                             let _ = window.update(cx, |_, window, cx| window.focus(&focus, cx));
                         }
-                        visible = now_visible;
+                        available = now_available;
                         let _ = weak.update(cx, |session, cx| {
                             if !runtime::is_open(&session.snapshot.phase) {
                                 return;
@@ -200,7 +206,8 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                                     != Some(actual.physical_overlay_rect)
                                 || session.snapshot.physical_client_rect
                                     != Some(actual.physical_client_rect)
-                                || session.snapshot.hidden_reason != actual.visibility_reason;
+                                || session.snapshot.hidden_reason != actual.visibility_reason
+                                || session.snapshot.input_suspended != actual.input_suspended;
                             session.snapshot.phase = OverlayPhase::Attached;
                             session.snapshot.physical_client_rect =
                                 Some(actual.physical_client_rect);
@@ -208,6 +215,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                                 Some(actual.physical_overlay_rect);
                             session.snapshot.margins = margins;
                             session.snapshot.hidden_reason = actual.visibility_reason;
+                            session.snapshot.input_suspended = actual.input_suspended;
                             if changed {
                                 session.snapshot.native_updates += 1;
                                 session.snapshot.sample_to_apply = Some(sampled_at.elapsed());
@@ -227,6 +235,14 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                         break;
                     }
                 }
+            }
+            if let Some(warning) = native.take_warning() {
+                let _ = weak.update(cx, |session, cx| {
+                    if runtime::is_open(&session.snapshot.phase) {
+                        session.snapshot.error = Some(warning);
+                        session.publish(OverlayEventKind::OperationFailed, cx);
+                    }
+                });
             }
             changed.wait().await;
         }

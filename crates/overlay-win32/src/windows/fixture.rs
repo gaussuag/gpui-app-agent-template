@@ -19,6 +19,11 @@ static WHEELS: AtomicUsize = AtomicUsize::new(0);
 unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
         match msg {
+            super::presentation_input::CREATE_OCCLUDER => LRESULT(
+                super::presentation_input::create(hwnd)
+                    .map(|value| value.0 as isize)
+                    .unwrap_or(0),
+            ),
             WM_NCCALCSIZE if CUSTOM_CHROME.load(Ordering::Relaxed) => LRESULT(0),
             WM_NCHITTEST if CUSTOM_CHROME.load(Ordering::Relaxed) => {
                 let mut rect = RECT::default();
@@ -153,7 +158,9 @@ fn drive_probe(target: usize) -> bool {
     let components =
         std::env::args().any(|arg| matches!(arg.as_str(), "--components" | "--components-preview"));
     let ime = std::env::args().any(|arg| matches!(arg.as_str(), "--ime" | "--ime-preview"));
-    let interactive = ime || components || std::env::args().any(|arg| arg == "--interactive");
+    let interactive = ime
+        || components
+        || std::env::args().any(|arg| matches!(arg.as_str(), "--interactive" | "--presentation"));
     let demo = std::env::args().any(|arg| arg == "--demo");
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
@@ -180,6 +187,9 @@ fn drive_probe(target: usize) -> bool {
     }
     if interactive {
         command.arg("--interactive");
+    }
+    if std::env::args().any(|arg| arg == "--presentation") {
+        command.arg("--presentation");
     }
     if ime {
         command.arg("--ime");
@@ -397,6 +407,28 @@ fn exercise_input(
             "target/probe-hud.bmp"
         },
     )?;
+    let occluder = if std::env::args().any(|arg| arg == "--presentation") {
+        let mut owned = (child_pid, Vec::<HWND>::new());
+        // SAFETY: enumerate only the GPUI child started by this fixture.
+        unsafe {
+            EnumWindows(
+                Some(child_windows),
+                LPARAM((&mut owned as *mut (u32, Vec<HWND>)) as isize),
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        let overlay = owned
+            .1
+            .into_iter()
+            .find(|window| {
+                // SAFETY: read-only style query of child-process windows.
+                unsafe { GetWindowLongPtrW(*window, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW.0 != 0 }
+            })
+            .ok_or("overlay window not found")?;
+        Some(super::presentation_input::Occluder::start(host, overlay)?)
+    } else {
+        None
+    };
     click_wheel(
         host,
         child_pid,
@@ -404,6 +436,9 @@ fn exercise_input(
         true,
     )?;
     std::thread::sleep(Duration::from_millis(350));
+    if let Some(occluder) = occluder {
+        occluder.verify_promoted()?;
+    }
     let clicks = CLICKS.load(Ordering::SeqCst);
     let wheels = WHEELS.load(Ordering::SeqCst);
     println!("RESULT interactive={interactive} clicks={clicks} wheels={wheels}");
@@ -700,7 +735,9 @@ fn owned_foreground(host: HWND, child_pid: u32, require_child: bool) -> bool {
         let foreground = GetForegroundWindow();
         let mut pid = 0;
         GetWindowThreadProcessId(foreground, Some(&mut pid));
-        (!require_child && foreground == host) || (pid == child_pid && !foreground.is_invalid())
+        (!require_child
+            && (foreground == host || super::presentation_input::is_foreground(foreground)))
+            || (pid == child_pid && !foreground.is_invalid())
     }
 }
 

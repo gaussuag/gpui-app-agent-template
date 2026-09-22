@@ -20,6 +20,8 @@ pub struct OverlaySnapshot {
     pub physical_overlay_rect: Option<PhysicalRect>,
     /// Last applied margins; requests are committed asynchronously.
     pub margins: super::OverlayMargins,
+    /// Temporarily disabled while the host is disabled; requested mode is unchanged.
+    pub input_suspended: bool,
     pub hidden_reason: Option<HiddenReason>,
     pub error: Option<OverlayError>,
     /// Number of committed geometry/visibility changes, including initial state.

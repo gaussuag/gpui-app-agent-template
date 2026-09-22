@@ -61,6 +61,27 @@ pub(super) enum WindowBinding {
     Simulated(testing::Backend),
 }
 impl WindowBinding {
+    pub fn presentation_changed(&self) -> bool {
+        match self {
+            Self::Native(native) => native.presentation_changed(),
+            #[cfg(test)]
+            Self::Simulated(_) => false,
+        }
+    }
+    pub fn set_change_signal(&self, signal: ChangeSignal) {
+        match self {
+            Self::Native(native) => native.set_change_signal(signal),
+            #[cfg(test)]
+            Self::Simulated(_) => {}
+        }
+    }
+    pub fn take_warning(&mut self) -> Option<OverlayError> {
+        match self {
+            Self::Native(native) => native.take_warning(),
+            #[cfg(test)]
+            Self::Simulated(_) => None,
+        }
+    }
     pub fn usable(&self) -> bool {
         match self {
             Self::Native(native) => native.usable(),
@@ -294,6 +315,7 @@ pub(crate) mod testing {
                 physical_overlay_rect: PhysicalRect::default(),
                 visibility_reason: None,
                 dpi: 144,
+                input_suspended: false,
                 terminal: None,
             }
         }

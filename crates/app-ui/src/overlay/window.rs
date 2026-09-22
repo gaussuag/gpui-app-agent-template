@@ -125,6 +125,7 @@ pub fn open_window<V: Render + 'static>(
             physical_client_rect: None,
             physical_overlay_rect: None,
             margins: options.margins,
+            input_suspended: false,
             hidden_reason: None,
             error: None,
             native_updates: 0,

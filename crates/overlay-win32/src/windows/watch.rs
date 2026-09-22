@@ -125,7 +125,10 @@ unsafe extern "system" fn event(
     _: u32,
 ) {
     let relevant_host = TARGET.with(|target| target.get() == hwnd.0 as usize);
-    if event == EVENT_SYSTEM_FOREGROUND {
+    if matches!(
+        event,
+        EVENT_SYSTEM_FOREGROUND | EVENT_OBJECT_REORDER | EVENT_OBJECT_SHOW | EVENT_OBJECT_HIDE
+    ) {
         DIRTY.set(true);
     }
     if relevant_host && (event < EVENT_OBJECT_CREATE || (object == 0 && child == 0)) {
@@ -177,6 +180,20 @@ fn run(
             id.tid,
         ),
         (EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, 0),
+        (EVENT_OBJECT_SHOW, EVENT_OBJECT_REORDER, 0, 0),
+        (
+            EVENT_SYSTEM_MOVESIZESTART,
+            EVENT_SYSTEM_MOVESIZEEND,
+            id.pid,
+            id.tid,
+        ),
+        (
+            EVENT_OBJECT_STATECHANGE,
+            EVENT_OBJECT_STATECHANGE,
+            id.pid,
+            id.tid,
+        ),
+        (EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, id.pid, id.tid),
     ];
     let mut hooks = Vec::new();
     let mut setup_error = None;
@@ -213,7 +230,13 @@ fn run(
         // references escape DispatchMessage and hook callbacks do not block.
         unsafe {
             let mut message = MSG::default();
-            while PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
+            let batch_started = Instant::now();
+            for _ in 0..64 {
+                if batch_started.elapsed() >= Duration::from_millis(1)
+                    || !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool()
+                {
+                    break;
+                }
                 let _ = TranslateMessage(&message);
                 DispatchMessageW(&message);
             }

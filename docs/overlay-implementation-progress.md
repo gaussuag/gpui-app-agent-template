@@ -5,12 +5,56 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
-Host-relative presentation implementation has reached its stage-zero primitive
-experiment: [evidence and runnable probe](overlay-presentation-stage0.md).
-The asynchronous foreign-host reorder reproduced execution after intent expiry;
-that candidate is rejected under the proposed guarantee. Production behavior
-is unchanged. Stages 1–3 await a decision on host cooperation versus accepting
-late effects; the failure is not a manual-test deferral.
+Host-relative presentation is implemented, with the user's explicit exception:
+an already-submitted foreign-host asynchronous reorder can execute late. It does
+not introduce game-side integration, owner/parent, periodic activation, input
+queue attachment, or a new worker. The [stage-zero counterexample](overlay-presentation-stage0.md)
+is retained as evidence of the limitation, not reclassified as a passing test.
+
+Native changes: inactive hosts remain visible; visible-neighbor Z-order follows
+the host's normal/topmost band; mode style refresh preserves order. Hidden IME
+helper windows are excluded from visual adjacency (the real adapter test caught
+this). Host modal disabling suspends native and GPUI interaction while preserving
+requested mode/content. Local dirty signals bypass unchanged host sequence; an
+activation cancellation epoch retains intermediate focus loss. User mouse
+activation can submit one asynchronous host reorder with NOACTIVATE, retaining
+the original click. No automatic retry: after 500ms without observed completion,
+or loss of eligibility while unconfirmed, following resumes and a warning asks
+for reattachment before another promotion. This does not cancel the posted request.
+
+Existing worker coalescing remains 16ms / 250ms fallback, with additional order,
+visibility and modal events and a 64-message / 1ms pump batch. Idle observations
+do not write windows or publish business events. No callback writes disk or
+queries UIA. Diagnostics currently use typed snapshots and deduplicated warnings;
+a diagnostic history/ring buffer is not implemented.
+
+Verification of this extension:
+- 34 app-ui tests passed, including modal capture release/content retention and
+  no business notifications for unchanged native observations.
+- 7 overlay-win32 tests passed. A real same-thread Win32 adapter fixture verifies
+  inactive visibility, occluder > overlay > host, 64 idle reconciliations with
+  zero WINDOWPOS writes, same-sequence Z-order changes, topmost up/down, modal
+  ordering/disabled input, hide/restore and unchanged foreground. It is not a
+  substitute for cross-process input/performance evidence.
+- Strict Clippy and the Windows x64 Demo build passed. Review results follow
+  the final implementation commit.
+- New `scripts/smoke-overlay.ps1 -Suite presentation` uses a controlled third
+  window and actual GPUI input, requiring natural occlusion, host promotion,
+  retained foreground, exactly one increment and focused text input. The initial
+  direct fixture run aborted because the controlled host could not obtain
+  foreground. No input was sent; `target/presentation-input.log` records the
+  failure and cleanup. The strengthened final smoke is pending unlocked-desktop
+  execution; no claim of first-click success is made.
+- Manual/desktop checks and quantitative 60Hz/multi-session performance for the
+  new layer behavior remain pending in the [manual checklist](overlay-manual-acceptance.md).
+  Previous user acceptance does not certify this new implementation.
+- Unified repository/generated regression remains deferred at the user's request.
+
+Changes to acceptance: old synthetic Background samples now test Invisible
+suspension; new native tests positively assert inactive visibility and occlusion.
+The new presentation smoke adds assertions, rather than merely removing the
+previous visibility rule. The user explicitly accepted posted-request lateness;
+no other performance or input requirement is marked passed without evidence.
 
 User-requested margins extension is implemented: `OverlayOptions.margins` and
 `OverlayWindow::set_margins` accept top/right/bottom/left whole logical pixels.
@@ -23,7 +67,7 @@ Verification: margin arithmetic covers 100%/150%/200%, signed origins and overfl
 Demo validation. The native `-Suite margins` passed real caption dragging and
 border resizing on a controlled client-drawn host in both HUD and Interactive;
 resources return to zero. Strict Clippy and both review axes pass. User manual
-acceptance of this new feature is pending; prior acceptance below predates it.
+acceptance of margins was subsequently confirmed ("这个好了"); prior acceptance below predates the new layer behavior.
 Unified repository/generated regression remains deferred at the user's request.
 
 Runtime DPI switching is fixed and manually accepted: with Overlay attached to

@@ -102,6 +102,7 @@ async fn exercise(
 ) -> Result<(), String> {
     let stress = std::env::args().any(|arg| arg == "--stress");
     let interactive = std::env::args().any(|arg| arg == "--interactive");
+    let presentation = std::env::args().any(|arg| arg == "--presentation");
     let ime = std::env::args().any(|arg| arg == "--ime");
     let components = std::env::args().any(|arg| arg == "--components");
     let margins_probe = std::env::args().any(|arg| arg == "--margins");
@@ -299,6 +300,11 @@ async fn exercise(
                 if !components && (count < 1 || text != expected) {
                     return Err(format!(
                         "Real input mismatch: count={count}, text={text:?}, input_focused={focused}; expected count>=1 and text={expected:?}."
+                    ));
+                }
+                if presentation && (count != 1 || !focused) {
+                    return Err(format!(
+                        "Presentation first click/input failed: count={count}, focused={focused}; expected exactly one increment and retained input focus."
                     ));
                 }
                 if ime {

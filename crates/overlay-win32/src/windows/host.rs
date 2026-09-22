@@ -114,7 +114,7 @@ unsafe extern "system" fn enumerate(hwnd: HWND, data: LPARAM) -> BOOL {
     }
 }
 
-fn cloaked(hwnd: HWND) -> bool {
+pub(super) fn cloaked(hwnd: HWND) -> bool {
     let mut value = 0u32;
     // SAFETY: fixed-size stack output exactly matches DWMWA_CLOAKED.
     unsafe {
@@ -123,7 +123,7 @@ fn cloaked(hwnd: HWND) -> bool {
     }
 }
 
-pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> HostSnapshot {
+pub(super) fn sample(id: HostWindowId, _overlay: Option<HWND>, sequence: u64) -> HostSnapshot {
     let _dpi = DpiScope::enter();
     let hwnd = HWND(id.raw as *mut _);
     let mut snapshot = HostSnapshot {
@@ -134,6 +134,7 @@ pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> 
         physical_overlay_rect: PhysicalRect::default(),
         visibility_reason: None,
         dpi: 96,
+        input_suspended: false,
         terminal: None,
     };
     // SAFETY: read-only window queries; PID/TID are revalidated on every sample.
@@ -178,7 +179,8 @@ pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> 
         };
         snapshot.physical_overlay_rect = snapshot.physical_client_rect;
         snapshot.dpi = GetDpiForWindow(hwnd);
-        let foreground = GetForegroundWindow();
+        snapshot.input_suspended =
+            !::windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(hwnd).as_bool();
         snapshot.visibility_reason = if IsIconic(hwnd).as_bool() {
             Some(HiddenReason::Minimized)
         } else if !IsWindowVisible(hwnd).as_bool() {
@@ -189,34 +191,9 @@ pub(super) fn sample(id: HostWindowId, overlay: Option<HWND>, sequence: u64) -> 
             || snapshot.physical_client_rect.height() <= 0
         {
             Some(HiddenReason::EmptyClient)
-        } else if foreground != hwnd
-            && Some(foreground) != overlay
-            && !is_overlay_ime(foreground, overlay)
-        {
-            Some(HiddenReason::Background)
         } else {
             None
         };
     }
     snapshot
-}
-
-fn is_overlay_ime(foreground: HWND, overlay: Option<HWND>) -> bool {
-    let Some(overlay) = overlay else {
-        return false;
-    };
-    // SAFETY: read-only thread/class queries. Only documented input helper
-    // classes on the overlay's thread qualify; ordinary host dialogs do not.
-    unsafe {
-        let thread = GetWindowThreadProcessId(overlay, None);
-        if thread == 0 || GetWindowThreadProcessId(foreground, None) != thread {
-            return false;
-        }
-        let mut class = [0u16; 128];
-        let length = GetClassNameW(foreground, &mut class).max(0) as usize;
-        matches!(
-            String::from_utf16_lossy(&class[..length]).as_str(),
-            "IME" | "MSCTFIME UI"
-        )
-    }
 }
