@@ -9,8 +9,10 @@ Runtime DPI switching is fixed and manually accepted: with Overlay attached to
 Settings, the user changed 100% → 150% → 100% without dragging; Overlay adapted
 automatically. See [DPI evidence](overlay-dpi-evidence.md) for diagnosis and the
 focused regression. Temporary diagnostics were removed. The user also reports
-cross-screen and multiple-desktop checks passed. Negative-coordinate display
-coverage remains unconfirmed; unified regression remains deferred.
+cross-screen and multiple-desktop checks passed. The user subsequently constructed
+a negative-coordinate display scenario and confirmed interaction and functionality
+passed (2026-09-22). The manual environment checklist is now accepted; unified
+regression remains deferred. These are user-reported results, not automated evidence.
 
 The user accepts the 60 Hz item by manual acceptance: both current displays
 are reported as 60 Hz, functionality is normal, and no further refresh-rate
