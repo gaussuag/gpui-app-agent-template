@@ -122,6 +122,7 @@ fn drive_probe(target: usize) -> bool {
     let demo = std::env::args().any(|arg| arg == "--demo");
     let stress = std::env::args().any(|arg| arg == "--stress");
     let geometry = std::env::args().any(|arg| arg == "--geometry");
+    let fallback = std::env::args().any(|arg| arg == "--fallback");
     let close_case = std::env::args().find(|arg| {
         matches!(
             arg.as_str(),
@@ -131,6 +132,9 @@ fn drive_probe(target: usize) -> bool {
     let mut passed = true;
     let mut command = std::process::Command::new(probe);
     command.env("OVERLAY_PROBE_HOST", target.to_string());
+    if fallback {
+        command.env("OVERLAY_PROBE_DROP_EVENTS", "1");
+    }
     if interactive {
         command.arg("--interactive");
     }
@@ -208,6 +212,7 @@ fn drive_probe(target: usize) -> bool {
     if !demo
         && !stress
         && !geometry
+        && !fallback
         && close_case.is_none()
         && let Err(error) = exercise_input(HWND(target as *mut _), child.id(), interactive)
     {
@@ -221,7 +226,7 @@ fn drive_probe(target: usize) -> bool {
         );
         passed = false;
     }
-    if geometry {
+    if geometry || fallback {
         // SAFETY: enumerate candidates only in the child started by this fixture.
         let mut owned = (child.id(), Vec::<HWND>::new());
         unsafe {
@@ -230,7 +235,12 @@ fn drive_probe(target: usize) -> bool {
                 LPARAM((&mut owned as *mut (u32, Vec<HWND>)) as isize),
             );
         }
-        if let Err(error) = super::geometry::run(HWND(target as *mut _), &owned.1) {
+        let result = if fallback {
+            super::fallback::run(HWND(target as *mut _), &owned.1)
+        } else {
+            super::geometry::run(HWND(target as *mut _), &owned.1)
+        };
+        if let Err(error) = result {
             eprintln!(
                 "{}: {error}",
                 if error.starts_with("environment:") {

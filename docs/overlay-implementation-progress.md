@@ -5,6 +5,24 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-22)
 
+The new `smoke-overlay.ps1 -Suite fallback` deliberately discards WinEvent
+callbacks in the native probe's `test-support` build. The default production
+build does not compile this environment switch or discard callback. The real
+watcher, 250 ms sampling loop, GPUI driver and native apply path are unchanged.
+Acceptance requires four changed move/resize samples plus hide/restore within
+500 ms total per operation, <=1 px alignment, a positive discarded-event count,
+normal cleanup and successful process exit. The first focused run discarded
+6 events and converged in roughly 248–264 ms; hiding took 264 ms.
+A negative control temporarily removed periodic sampling: the same native test
+failed at its 500 ms bound. Source was restored in `finally` and checked before
+the positive full-gate rerun. Both review axes found no actionable issue.
+The full repository gate passed with 8 discarded events. Its
+[stored samples](overlay-evidence/fallback-200.json) record
+move/resize times 186.787–263.324 ms, hide 263.447 ms
+and restore 259.522 ms, with zero resources after cleanup. The discarded-event
+count is verified in the process log; the JSON stores the timing samples.
+Generated-project canonical and Release-resource verification also passed.
+
 The native geometry suite now includes real DWM cloak/uncloak and Win+Left Snap.
 The cloak test checks the [documented DWM state](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute),
 requires host foreground and WS_VISIBLE to remain unchanged, observes overlay
@@ -120,8 +138,9 @@ undisturbed desktop interval; no safeguard was bypassed.
 
 Still uncompleted beyond the user-deferred display cases: native ordinary-window
 versus overlay comparisons for Chinese IME, clipboard, Tab/Shift+Tab, tooltip,
-scroll and all temporary layers; deliberately missed notifications; performance
-evidence on a confirmed ordinary 60 Hz desktop.
+scroll and all temporary layers; performance evidence on a confirmed ordinary
+60 Hz desktop. Missed move/resize/hide/restore notifications are now covered by
+the dedicated native fallback suite above.
 Existing headless component/lifecycle tests do not replace those native checks.
 
 Run `cargo run --locked -p desktop -- --overlay-demo`. Refresh/select an external

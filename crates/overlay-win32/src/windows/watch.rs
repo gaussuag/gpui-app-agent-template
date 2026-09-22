@@ -21,6 +21,26 @@ thread_local! {
     static DESTROYED: Cell<bool> = const { Cell::new(false) };
 }
 
+#[cfg(feature = "test-support")]
+thread_local! {
+    static DROPPED_EVENTS: Cell<u64> = const { Cell::new(0) };
+}
+
+// SAFETY: test-only callback runs on the hook owner thread and merely counts
+// discarded notifications. It never forwards them to the production dirty flag.
+#[cfg(feature = "test-support")]
+unsafe extern "system" fn discard_event(
+    _: HWINEVENTHOOK,
+    _: u32,
+    _: HWND,
+    _: i32,
+    _: i32,
+    _: u32,
+    _: u32,
+) {
+    DROPPED_EVENTS.set(DROPPED_EVENTS.get().saturating_add(1));
+}
+
 /// One message-pump thread per session and one bounded latest-snapshot slot.
 /// Stop signals are nonblocking; `finish` must run on a background executor.
 pub struct HostWatch {
@@ -160,19 +180,19 @@ fn run(
     ];
     let mut hooks = Vec::new();
     let mut setup_error = None;
+    let callback: WINEVENTPROC = Some(event);
+    #[cfg(feature = "test-support")]
+    let callback: WINEVENTPROC = if std::env::var_os("OVERLAY_PROBE_DROP_EVENTS").is_some() {
+        DROPPED_EVENTS.set(0);
+        Some(discard_event)
+    } else {
+        callback
+    };
     for (first, last, pid, tid) in ranges {
         // SAFETY: this thread owns hooks and pumps messages until it unhooks;
         // callback code is static, and context is thread-local.
         let hook = unsafe {
-            SetWinEventHook(
-                first,
-                last,
-                None,
-                Some(event),
-                pid,
-                tid,
-                WINEVENT_OUTOFCONTEXT,
-            )
+            SetWinEventHook(first, last, None, callback, pid, tid, WINEVENT_OUTOFCONTEXT)
         };
         if hook.is_invalid() {
             setup_error = Some(OverlayError {
@@ -258,6 +278,10 @@ fn run(
     }
     TARGET.set(0);
     thread_id.store(0, Ordering::SeqCst);
+    #[cfg(feature = "test-support")]
+    if DROPPED_EVENTS.get() > 0 {
+        println!("OVERLAY_DROPPED_EVENTS={}", DROPPED_EVENTS.get());
+    }
     match cleanup_error {
         Some(error) => Err(error),
         None => Ok(()),

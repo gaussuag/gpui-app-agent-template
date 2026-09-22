@@ -27,7 +27,10 @@ fn client(host: HWND) -> Result<RECT, String> {
     }
 }
 
-fn wait_for(mut matches: impl FnMut() -> bool, limit_ms: u64) -> Result<Duration, String> {
+pub(super) fn wait_for(
+    mut matches: impl FnMut() -> bool,
+    limit_ms: u64,
+) -> Result<Duration, String> {
     let started = Instant::now();
     loop {
         let matched = matches();
@@ -44,7 +47,7 @@ fn wait_for(mut matches: impl FnMut() -> bool, limit_ms: u64) -> Result<Duration
     }
 }
 
-fn aligned(host: HWND, overlay: HWND) -> bool {
+pub(super) fn aligned(host: HWND, overlay: HWND) -> bool {
     let Ok(expected) = client(host) else {
         return false;
     };

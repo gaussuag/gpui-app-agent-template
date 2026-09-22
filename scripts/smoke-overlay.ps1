@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "lifecycle", "input", "geometry")]
+    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback")]
     [string]$Suite = "all"
 )
 
@@ -44,6 +44,9 @@ function Invoke-OverlayProbe {
         if ($stderr) { Write-Host $stderr }
         $inputVerified = $Mode -in @("--stress", "--host-exit", "--owner-close", "--external-close") -or $stdout.Contains("PROBE_REAL_INPUT_OK")
         if ($Mode -eq "--geometry") { $inputVerified = $stdout.Contains("PROBE_GEOMETRY_OK") }
+        if ($Mode -eq "--fallback") {
+            $inputVerified = $stdout.Contains("PROBE_FALLBACK_OK") -and $stdout -match 'OVERLAY_DROPPED_EVENTS=[1-9][0-9]*'
+        }
         if ($process.ExitCode -ne 0 -or -not $stdout.Contains($Marker) -or -not $stdout.Contains("PROBE_CLEANUP_COMPLETE") -or -not $inputVerified) {
             if ($stderr.Contains("PROBE_ABORTED")) {
                 throw "Overlay input smoke requires an unlocked interactive desktop with the controlled fixture in foreground. No input is sent after a foreground guard fails."
@@ -78,6 +81,10 @@ try {
     if ($Suite -in @("all", "geometry")) {
         Write-Host "==> overlay native geometry, latency, and visibility (15s)"
         Invoke-OverlayProbe -Mode "--geometry" -Marker "PROBE_GEOMETRY_OK" -TimeoutSeconds 15
+    }
+    if ($Suite -in @("all", "fallback")) {
+        Write-Host "==> overlay convergence with deliberately dropped WinEvents (15s)"
+        Invoke-OverlayProbe -Mode "--fallback" -Marker "PROBE_FALLBACK_OK" -TimeoutSeconds 15
     }
 }
 finally { Pop-Location }

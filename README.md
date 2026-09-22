@@ -98,6 +98,7 @@ Run a focused layer while developing:
 .\scripts\smoke.ps1
 .\scripts\smoke-overlay.ps1 # controlled external host, real input, resource endurance
 .\scripts\smoke-overlay.ps1 -Suite lifecycle # no synthetic input required
+.\scripts\smoke-overlay.ps1 -Suite fallback # discard WinEvents and verify periodic convergence
 .\scripts\test-generated-project.ps1 # template generation/build integration
 ```
 

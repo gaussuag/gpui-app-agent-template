@@ -24,6 +24,7 @@ pub fn resource_counts() -> crate::ResourceCounts {
     }
 }
 
+mod fallback;
 mod fixture;
 mod geometry;
 mod host;
