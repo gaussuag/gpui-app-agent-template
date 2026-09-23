@@ -202,19 +202,7 @@ impl WindowBinding {
                 Placement::Unchanged
             } else {
                 let previous = visible_neighbor(target, GW_HWNDPREV)?;
-                // Visual adjacency skips hidden helpers, but the insertion
-                // anchor must be the immediate native predecessor. Replacing
-                // the last topmost predecessor with HWND_TOP is subject to
-                // foreground permission and can leave us behind an active host.
-                // Skipping hidden predecessors can also cross the band boundary.
-                let predecessor = GetWindow(target, GW_HWNDPREV).ok();
-                // A hidden overlay is skipped by visual adjacency but can
-                // still be the raw predecessor while restoring visibility.
-                let predecessor = if predecessor == Some(self.hwnd) {
-                    GetWindow(self.hwnd, GW_HWNDPREV).ok()
-                } else {
-                    predecessor
-                };
+                let predecessor = insertion_anchor(target, self.hwnd, host_topmost)?;
                 placement(
                     previous == Some(self.hwnd),
                     true,
@@ -270,6 +258,35 @@ impl WindowBinding {
 // identity and handle disappearance through their apply failure path.
 unsafe fn topmost(hwnd: HWND) -> bool {
     unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 }
+}
+
+/// Hidden same-band helpers (notably foreign IME windows) can reject insertion
+/// with ACCESS_DENIED. Skip them, but retain the first topmost boundary anchor:
+/// replacing it with HWND_TOP loses the foreground-host placement guarantee,
+/// and skipping past it could promote an ordinary overlay into the topmost band.
+fn insertion_anchor(
+    mut host: HWND,
+    overlay: HWND,
+    host_topmost: bool,
+) -> Result<Option<HWND>, Error> {
+    // SAFETY: bounded read-only traversal; no helper windows are modified.
+    unsafe {
+        for _ in 0..64 {
+            let Ok(previous) = GetWindow(host, GW_HWNDPREV) else {
+                return Ok(None);
+            };
+            if previous.is_invalid() {
+                return Ok(None);
+            }
+            if previous != overlay
+                && (IsWindowVisible(previous).as_bool() || (!host_topmost && topmost(previous)))
+            {
+                return Ok(Some(previous));
+            }
+            host = previous;
+        }
+    }
+    Err(Error::from_hresult(E_FAIL))
 }
 
 /// Invisible helper windows (including system-created IME owners) do not define

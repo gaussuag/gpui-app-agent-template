@@ -5,12 +5,33 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-23)
 
+Follow-up for the native-caption game host: immediate attach failure reproduced
+on the user's named host, with `SetWindowPos` returning ACCESS_DENIED (0x80070005)
+when its insertion anchor was the host's hidden foreign `IME` window. This is not
+a caption-style visibility rule. Anchor selection now skips hidden same-band
+helpers, excludes itself, and stops at a visible window or the ordinary host's
+first topmost boundary (even if hidden). The boundary exception retains the
+foreground fix below without treating every hidden helper as a usable anchor.
+Selection is bounded to 64 steps; no helper/host mutation or new retry is added.
+
+The same no-input HUD probe on the actual host changed from failed to passed,
+with no OperationFailed/OrderUnavailable samples and zero workers/hooks/bindings
+after cleanup (`target/mingjiang-anchor-error.log` versus
+`target/mingjiang-anchor-fixed.log`). A native helper-selection test failed before
+the fix and passed afterward, alongside the retained hidden-boundary and idle
+checks. All 8 adapter tests, strict Clippy and the rebuilt x64 Demo passed.
+The final `-Suite presentation` also passed both HUD/Interactive caption cases,
+natural occlusion and first-click input (`target/ime-anchor-presentation.log`).
+Standards review found 0 issues; Spec review found no runtime deviation and its
+requested anchor-rule documentation correction is included. User visual and
+interactive confirmation on the game remains pending; the probe sent no input.
+
 Host activation occlusion fix: the user's captured trace showed the Overlay
 remained natively visible but moved behind the foreground host. A real
 cross-process caption click reproduced `visible=true, above_host=false`.
 Instrumentation confirmed reconciliation ran and SetWindowPos succeeded, but
 the HWND_TOP request was clamped below the foreground host. The fix retains
-the host's immediate native predecessor (excluding the overlay itself), even
+the host's native insertion anchor (refined above to skip same-band helpers), even
 when it is a hidden topmost boundary window. Visual adjacency still skips
 hidden helpers. No activation, owner, global topmost workaround or retry loop
 was added. Geometry, modal suspension and asynchronous-promotion semantics remain.

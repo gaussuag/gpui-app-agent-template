@@ -47,8 +47,8 @@ pub(crate) enum Placement {
     After(usize),
 }
 
-/// Preserve the immediate native predecessor, including an invisible window
-/// at the topmost boundary. HWND_TOP is not an equivalent insertion request:
+/// Preserve the selected native anchor, including an invisible window at the
+/// topmost boundary. HWND_TOP is not an equivalent insertion request:
 /// Windows can clamp a background caller beneath the foreground host.
 pub(crate) fn placement(adjacent: bool, same_band: bool, predecessor: Option<usize>) -> Placement {
     if adjacent && same_band {

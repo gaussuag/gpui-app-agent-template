@@ -135,6 +135,23 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(visible_neighbor(host.0, GW_HWNDNEXT), Some(third.0));
 
+        // Hidden same-band helpers are not presentation anchors. Real external
+        // IME windows can reject SetWindowPos insertion with ACCESS_DENIED.
+        let helper = window(None)?;
+        let flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE;
+        let _ = ShowWindow(helper.0, SW_HIDE);
+        SetWindowPos(helper.0, Some(third.0), 0, 0, 0, 0, flags)?;
+        SetWindowPos(host.0, Some(helper.0), 0, 0, 0, 0, flags)?;
+        assert!(!IsWindowVisible(GetWindow(host.0, GW_HWNDPREV)?).as_bool());
+        assert_eq!(visible_neighbor(host.0, GW_HWNDPREV), Some(third.0));
+        binding.apply_host(id, 1, margins)?;
+        assert_eq!(
+            GetWindow(own.0, GW_HWNDPREV)?,
+            third.0,
+            "skip hidden same-band helpers when selecting an insertion anchor"
+        );
+        drop(helper);
+
         // Hidden boundary anchors must not be skipped or promote an ordinary
         // overlay into the topmost band. Only fixture windows are changed.
         let boundary = window(None)?;
