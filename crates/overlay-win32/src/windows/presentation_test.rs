@@ -135,6 +135,30 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(visible_neighbor(host.0, GW_HWNDNEXT), Some(third.0));
 
+        // Hidden boundary anchors must not be skipped or promote an ordinary
+        // overlay into the topmost band. Only fixture windows are changed.
+        let boundary = window(None)?;
+        let _ = ShowWindow(boundary.0, SW_HIDE);
+        let flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE;
+        SetWindowPos(boundary.0, Some(HWND_TOPMOST), 0, 0, 0, 0, flags)?;
+        SetWindowPos(host.0, Some(HWND_TOP), 0, 0, 0, 0, flags)?;
+        let predecessor = GetWindow(host.0, GW_HWNDPREV)?;
+        if predecessor != boundary.0 {
+            SetWindowPos(boundary.0, Some(predecessor), 0, 0, 0, 0, flags)?;
+        }
+        assert_eq!(GetWindow(host.0, GW_HWNDPREV)?, boundary.0);
+        assert_eq!(binding.apply_host(id, 1, margins)?.visibility_reason, None);
+        assert_eq!(GetWindow(own.0, GW_HWNDPREV)?, boundary.0);
+        assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
+        assert_eq!(
+            GetWindowLongPtrW(own.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+            0
+        );
+        let writes = binding.diagnostics().placement_writes;
+        binding.apply_host(id, 1, margins)?;
+        assert_eq!(binding.diagnostics().placement_writes, writes);
+        drop(boundary);
+
         SetWindowPos(
             host.0,
             Some(HWND_TOPMOST),

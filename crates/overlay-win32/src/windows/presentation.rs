@@ -202,16 +202,23 @@ impl WindowBinding {
                 Placement::Unchanged
             } else {
                 let previous = visible_neighbor(target, GW_HWNDPREV)?;
-                let predecessor = if previous == Some(self.hwnd) {
-                    visible_neighbor(self.hwnd, GW_HWNDPREV)?
+                // Visual adjacency skips hidden helpers, but the insertion
+                // anchor must be the immediate native predecessor. Replacing
+                // the last topmost predecessor with HWND_TOP is subject to
+                // foreground permission and can leave us behind an active host.
+                // Skipping hidden predecessors can also cross the band boundary.
+                let predecessor = GetWindow(target, GW_HWNDPREV).ok();
+                // A hidden overlay is skipped by visual adjacency but can
+                // still be the raw predecessor while restoring visibility.
+                let predecessor = if predecessor == Some(self.hwnd) {
+                    GetWindow(self.hwnd, GW_HWNDPREV).ok()
                 } else {
-                    previous
+                    predecessor
                 };
                 placement(
                     previous == Some(self.hwnd),
                     true,
-                    host_topmost,
-                    predecessor.map(|window| (window.0 as usize, topmost(window))),
+                    predecessor.map(|window| window.0 as usize),
                 )
             };
             let r = state.physical_overlay_rect;

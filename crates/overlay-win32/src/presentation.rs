@@ -47,19 +47,15 @@ pub(crate) enum Placement {
     After(usize),
 }
 
-/// The predecessor excludes our overlay. A normal host beneath the topmost
-/// group must use TOP, never the topmost predecessor as insertion handle.
-pub(crate) fn placement(
-    adjacent: bool,
-    same_band: bool,
-    host_topmost: bool,
-    predecessor: Option<(usize, bool)>,
-) -> Placement {
+/// Preserve the immediate native predecessor, including an invisible window
+/// at the topmost boundary. HWND_TOP is not an equivalent insertion request:
+/// Windows can clamp a background caller beneath the foreground host.
+pub(crate) fn placement(adjacent: bool, same_band: bool, predecessor: Option<usize>) -> Placement {
     if adjacent && same_band {
         return Placement::Unchanged;
     }
     match predecessor {
-        Some((handle, topmost)) if host_topmost || !topmost => Placement::After(handle),
+        Some(handle) => Placement::After(handle),
         _ => Placement::Top,
     }
 }
@@ -68,23 +64,12 @@ pub(crate) fn placement(
 mod tests {
     use super::*;
     #[test]
-    fn ordinary_host_never_inherits_a_topmost_neighbors_band() {
-        assert_eq!(
-            placement(false, true, false, Some((7, true))),
-            Placement::Top
-        );
-        assert_eq!(
-            placement(false, true, false, Some((8, false))),
-            Placement::After(8)
-        );
-        assert_eq!(
-            placement(true, true, false, Some((7, true))),
-            Placement::Unchanged
-        );
-        assert_eq!(
-            placement(true, false, false, Some((7, true))),
-            Placement::Top
-        );
+    fn exact_predecessor_is_preserved_at_the_foreground_band_boundary() {
+        assert_eq!(placement(false, true, Some(7)), Placement::After(7));
+        assert_eq!(placement(false, true, Some(8)), Placement::After(8));
+        assert_eq!(placement(true, true, Some(7)), Placement::Unchanged);
+        assert_eq!(placement(true, false, Some(7)), Placement::After(7));
+        assert_eq!(placement(false, true, None), Placement::Top);
     }
     #[test]
     fn one_request_waits_for_observed_order_not_submission_return() {

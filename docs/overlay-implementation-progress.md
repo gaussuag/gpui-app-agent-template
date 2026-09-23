@@ -3,7 +3,33 @@
 Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 `03c0e72` on `dev/gpui_overlay_component`; initial worktree clean.
 
-## Current status (2026-09-22)
+## Current status (2026-09-23)
+
+Host activation occlusion fix: the user's captured trace showed the Overlay
+remained natively visible but moved behind the foreground host. A real
+cross-process caption click reproduced `visible=true, above_host=false`.
+Instrumentation confirmed reconciliation ran and SetWindowPos succeeded, but
+the HWND_TOP request was clamped below the foreground host. The fix retains
+the host's immediate native predecessor (excluding the overlay itself), even
+when it is a hidden topmost boundary window. Visual adjacency still skips
+hidden helpers. No activation, owner, global topmost workaround or retry loop
+was added. Geometry, modal suspension and asynchronous-promotion semantics remain.
+
+Focused verification: 8 overlay-win32 tests, strict adapter Clippy and Windows
+x64 Demo build passed. `scripts/smoke-overlay.ps1 -Suite presentation` passed on
+the interactive desktop for Interactive and HUD caption clicks: visible, above
+host, same band, host retains foreground. Natural occlusion, host promotion,
+first click/text input and resource cleanup also passed. Logs are local artifacts
+under `target/caption-final-smoke.log`; the earlier red result is in
+`target/caption-repro-desktop.log`. The sandbox desktop could not gain foreground;
+that abort is not a passing test. The suite was then run outside desktop isolation
+with the same input ownership guards. Standards and Spec reviews: 0 findings each.
+
+Acceptance coverage is strengthened: the old pure assertion that a topmost
+predecessor must become HWND_TOP was incorrect. The replacement native boundary
+test verifies the actual requirement (ordinary overlay remains non-topmost),
+including hidden anchors and no repeated writes after convergence. Final visual
+confirmation on the user's host is pending; unified/generated regression stays deferred.
 
 Host-relative presentation is implemented, with the user's explicit exception:
 an already-submitted foreign-host asynchronous reorder can execute late. It does
@@ -50,8 +76,8 @@ Verification of this extension:
   retained foreground, exactly one increment and focused text input. The initial
   direct fixture run aborted because the controlled host could not obtain
   foreground. No input was sent; `target/presentation-input.log` records the
-  failure and cleanup. The strengthened final smoke is pending unlocked-desktop
-  execution; no claim of first-click success is made.
+  failure and cleanup. The 2026-09-23 targeted desktop run above supersedes this
+  pending smoke result with actual cross-process first-click evidence.
 - Manual/desktop checks and quantitative 60Hz/multi-session performance for the
   new layer behavior remain pending in the [manual checklist](overlay-manual-acceptance.md).
   Previous user acceptance does not certify this new implementation.

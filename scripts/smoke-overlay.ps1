@@ -47,8 +47,9 @@ function Invoke-OverlayProbe {
         if ($Mode.Contains("--margins")) { $inputVerified = $stdout.Contains("PROBE_MARGINS_OK") }
         if ($Mode -eq "--dpi") { $inputVerified = $stdout.Contains("PROBE_DPI_OK") }
         if ($Mode -eq "--presentation") {
-            $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_PRESENTATION_OCCLUSION_OK") -and $stdout.Contains("PROBE_PRESENTATION_FIRST_CLICK_OK")
+            $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_PRESENTATION_OCCLUSION_OK") -and $stdout.Contains("PROBE_PRESENTATION_FIRST_CLICK_OK") -and $stdout.Contains("PROBE_PRESENTATION_CAPTION_OK")
         }
+        if ($Mode -eq "--caption") { $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_PRESENTATION_CAPTION_OK") }
         if ($Mode -eq "--fallback") {
             $inputVerified = $stdout.Contains("PROBE_FALLBACK_OK") -and $stdout -match 'OVERLAY_DROPPED_EVENTS=[1-9][0-9]*'
         }
@@ -71,6 +72,7 @@ try {
     $probe = Join-Path $examples "overlay-probe.exe"
     if ($Suite -in @("all", "presentation")) {
         Invoke-OverlayProbe -Mode "--presentation" -Marker "PROBE_CONTENT_INPUT_OK" -TimeoutSeconds 15
+        Invoke-OverlayProbe -Mode "--caption" -Marker "OVERLAY_NATIVE_SMOKE_OK" -TimeoutSeconds 15
     }
     if ($Suite -in @("all", "margins")) {
         foreach ($mode in @("--margins", "--margins --interactive")) {

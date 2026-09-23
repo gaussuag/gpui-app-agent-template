@@ -407,7 +407,9 @@ fn exercise_input(
             "target/probe-hud.bmp"
         },
     )?;
-    let occluder = if std::env::args().any(|arg| arg == "--presentation") {
+    let presentation = std::env::args().any(|arg| arg == "--presentation");
+    let caption = std::env::args().any(|arg| arg == "--caption");
+    let occluder = if presentation || caption {
         let mut owned = (child_pid, Vec::<HWND>::new());
         // SAFETY: enumerate only the GPUI child started by this fixture.
         unsafe {
@@ -425,7 +427,12 @@ fn exercise_input(
                 unsafe { GetWindowLongPtrW(*window, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW.0 != 0 }
             })
             .ok_or("overlay window not found")?;
-        Some(super::presentation_input::Occluder::start(host, overlay)?)
+        super::presentation_input::verify_caption(host, overlay, child_pid, interactive)?;
+        if presentation {
+            Some(super::presentation_input::Occluder::start(host, overlay)?)
+        } else {
+            None
+        }
     } else {
         None
     };

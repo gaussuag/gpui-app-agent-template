@@ -151,3 +151,62 @@ fn above(mut first: HWND, second: HWND) -> bool {
     }
     false
 }
+
+pub(super) fn verify_caption(
+    host: HWND,
+    overlay: HWND,
+    child_pid: u32,
+    interactive: bool,
+) -> Result<(), String> {
+    use ::windows::Win32::UI::Input::KeyboardAndMouse::*;
+    // SAFETY: only fixture-owned windows are activated. The caption hit and
+    // foreground are checked before each real input batch.
+    unsafe {
+        let expected = if interactive { overlay } else { host };
+        let _ = SetForegroundWindow(expected);
+        std::thread::sleep(Duration::from_millis(150));
+        if GetForegroundWindow() != expected {
+            return Err("environment: controlled caption setup could not obtain foreground".into());
+        }
+        let mut outer = RECT::default();
+        GetWindowRect(host, &mut outer).map_err(|e| e.to_string())?;
+        let mut client = POINT::default();
+        if !ClientToScreen(host, &mut client).as_bool() {
+            return Err("fixture caption mapping failed".into());
+        }
+        let point = POINT {
+            x: (outer.left + outer.right) / 2,
+            y: (outer.top + client.y) / 2,
+        };
+        if WindowFromPoint(point) != host {
+            return Err("environment: controlled caption is occluded".into());
+        }
+        SetCursorPos(point.x, point.y).map_err(|e| e.to_string())?;
+        let input = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP].map(|flags| INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dwFlags: flags,
+                    ..Default::default()
+                },
+            },
+        });
+        super::fixture::send_owned(host, child_pid, &input, interactive)?;
+        std::thread::sleep(Duration::from_millis(500));
+        let visible = IsWindowVisible(overlay).as_bool();
+        let ordered = above(overlay, host);
+        let foreground = GetForegroundWindow();
+        let same_band = (GetWindowLongPtrW(host, GWL_EXSTYLE)
+            ^ GetWindowLongPtrW(overlay, GWL_EXSTYLE)) as u32
+            & WS_EX_TOPMOST.0
+            == 0;
+        println!(
+            "PROBE_CAPTION_STATE interactive={interactive} visible={visible} above_host={ordered} same_band={same_band} foreground={foreground:?} host={host:?}"
+        );
+        if foreground != host || !visible || !ordered || !same_band {
+            return Err("caption click did not retain visible overlay above active host".into());
+        }
+        println!("PROBE_PRESENTATION_CAPTION_OK");
+        Ok(())
+    }
+}

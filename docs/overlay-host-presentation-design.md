@@ -168,6 +168,9 @@ apply(plan, expected_epoch) -> ApplyOutcome
 - `hWndInsertAfter` 表示新位置之前的窗口，直接传宿主会将 Overlay 放到宿主后面。
 - 普通与 topmost 分组分别处理；普通宿主不能因为上一个邻居是 topmost 就把 Overlay 升成 topmost。
 - 宿主位于普通组顶部时使用普通组顶部位置；宿主位于 topmost 组时才允许自身进入该组。
+- 插入时保留宿主的直接原生前驱（排除 Overlay 自己），包括隐藏的分组边界窗口；
+  不能把 topmost 前驱替换成 `HWND_TOP`，后者受前台权限限制，可能让 Overlay 留在激活宿主后面。
+  视觉相邻判断仍跳过隐藏窗口；它与原生插入锚点是不同的查询目的。
 - 从旧模式遗留或宿主降级带来的 topmost 状态必须真正解除。
 - band 变化如需要多次调用，优先采用不暴露错误中间层级的顺序；原生截图/轨迹验证后冻结。
 - 几何不变但 order 变化：只改层级；不要触发无意义的 renderer resize 或 notify。
