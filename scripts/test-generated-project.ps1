@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$IncludeIme)
+param([switch]$FullRegression, [switch]$IncludeIme)
 
 $ErrorActionPreference = "Stop"
 $sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -81,8 +81,14 @@ try {
             throw "Generated project retained product identity sentinels:`n$($residuals -join "`n")"
         }
 
-        Write-Host "==> run generated repository canonical gate"
-        & .\scripts\check.ps1 -IncludeIme:$IncludeIme
+        if ($FullRegression -or $IncludeIme) {
+            Write-Host "==> run generated repository full regression"
+            & .\scripts\check.ps1 -IncludeIme:$IncludeIme
+        } else {
+            Write-Host "==> verify generated docs, architecture, build, resources and startup"
+            & .\scripts\check-architecture.ps1
+            & .\scripts\check.ps1 -Group docs,build,startup
+        }
 
         & git add --all
         if ($LASTEXITCODE -ne 0) { throw "fixture initialized git add failed." }
@@ -148,4 +154,4 @@ finally {
     }
 }
 
-Write-Host "Generated repository passed initialization, canonical, residual, and release-resource checks."
+Write-Host "Generated repository passed initialization, integration, residual, and release-resource checks."

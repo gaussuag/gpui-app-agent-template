@@ -1,7 +1,9 @@
 # Repository scripts
 
 Keep local and CI verification in `check.ps1`; use focused scripts during
-development. `test.ps1` must include GPUI Kit `test-support`, and native smoke
+development. Check groups compose without repeating shared prerequisites; full
+coverage is explicit in the result. Foundation tools take an explicit caller
+root and do not import project scripts. `test.ps1` must include GPUI Kit `test-support`, and native smoke
 must be bounded and self-closing.
 
 Resolve paths from `$PSScriptRoot`, use the Cargo resolver, stop on errors and

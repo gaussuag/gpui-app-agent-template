@@ -4,6 +4,15 @@
 A Windows-first Rust and GPUI desktop application.
 <!-- product-summary:end -->
 
+## Engineering layers
+
+Coding agents enter through [AGENTS.md](AGENTS.md), which explicitly loads
+[agent-foundation](agent-foundation/README.md) and the [project map](docs/project-guide.md).
+The foundation contains portable rules and stateless tools. The application,
+Overlay, dependency lockfile, platform policies and acceptance records remain
+project-owned. The foundation can later become a pinned submodule; it has no
+runtime dependency on this application.
+
 ## What is included
 
 - Rust 1.97.1 and Rust 2024, pinned by `rust-toolchain.toml`.
@@ -130,15 +139,11 @@ This suite is included in the default full gate.
 See the [manual acceptance checklist](docs/overlay-manual-acceptance.md) for
 user feedback and outstanding display-environment verification.
 
-That command is the canonical gate for ordinary changes. It runs formatting,
-Clippy, one workspace test run including GPUI Kit test-support, documentation
-links, dependency architecture, identity/dependency validator fixtures, and an explicit
-`x86_64-pc-windows-msvc` build with `--locked`, followed by a native first-frame,
-Action, close, and process-exit smoke. Changes to initialization, identity, the
-UI stack, or build/verification scripts additionally run
-`scripts/test-generated-project.ps1`; template CI runs
-both scripts. Specialized manual Windows, packaging, performance, or
-accessibility checks are reported separately.
+That command runs the complete integration gate. During development or feature
+handoff, select affected checks with `scripts/check.ps1 -Group docs,static,tests`
+or the focused commands below. See [check selection](docs/testing-standard.md).
+Generated-project verification defaults to initialization, build, startup and
+resource integration; `-FullRegression` retains the complete child gate.
 
 Run a focused layer while developing:
 
@@ -159,6 +164,7 @@ crates/app-core/   Domain state and effects; never depends on GPUI
 crates/app-ui/     The only GPUI Kit adapter
 crates/desktop/    Windows executable and process-level startup
 crates/overlay-win32/ Native overlay adapter; all Win32 code stays under src/windows
+agent-foundation/  Portable rules and stateless tools; independent of the app
 docs/              Architecture, decisions, templates, and Agent guidance
 scripts/           Canonical local verification and run commands
 ```

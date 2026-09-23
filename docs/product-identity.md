@@ -83,9 +83,11 @@ Those are product decisions, not template identity.
 `scripts/check-product.ps1` validates Cargo/README/LICENSE consistency, ICO
 structure, and optionally PE resources. `scripts/test-generated-project.ps1`
 copies the repository to a path containing spaces, creates a Git repository,
-initializes a Unicode-named product with another icon, runs the canonical gate,
-builds release, and inspects the PE. CI runs this isolated fixture after the
-template gate.
+initializes a Unicode-named product with another icon, checks architecture,
+documentation, build and native startup, then builds release and inspects the PE.
+CI runs this isolated fixture after the full source-project gate. Use
+`-FullRegression` when generation can change component behavior; `-IncludeIme`
+also selects full generated regression with real IME checks.
 
 The ownership rationale and manifest collision rule are recorded in
 [ADR 0003](decisions/0003-product-identity.md).

@@ -6,10 +6,10 @@ preserve unrelated work, and pair behavior with relevant tests.
 
 Use [implementation rules](docs/agent-development-standard.md) for Rust/GPUI
 boundaries and [the testing guide](docs/testing-standard.md) for check selection.
-Run `scripts/check.ps1` for code/build/automation changes. For docs-only edits,
-run `scripts/check-docs.ps1` and `git diff --check`. Template generation,
-identity, UI-stack and build/verification changes also exercise
-`scripts/test-generated-project.ps1`.
+Select focused checks or `scripts/check.ps1 -Group ...` by impact. The full gate
+runs at integration/release, not for every intermediate commit. Template
+initialization and build integration also use `scripts/test-generated-project.ps1`;
+see the testing guide for its optional full regression mode.
 
 Commit coherent changes with clear messages. No commit-message hook or body
 schema is required. If an older clone configured `core.hooksPath=.githooks`,
