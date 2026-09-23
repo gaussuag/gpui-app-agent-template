@@ -4,7 +4,7 @@ use crate::{
     LaunchIdentity,
     overlay::{
         self, HostInfo, HostWindowId, InputMode, OverlayEvent, OverlayEventKind, OverlayMargins,
-        OverlayOptions, OverlayPhase, OverlaySnapshot, OverlayWindow,
+        OverlayOptions, OverlayPhase, OverlaySnapshot, OverlayWindow, VisibilityPolicy,
     },
 };
 use content::DemoContent;
@@ -28,6 +28,7 @@ actions!(
         DetachHost,
         ToggleMode,
         ToggleCornerMarkers,
+        ToggleVisibilityPolicy,
         ApplyMargins,
         PreviewContent,
         SelectNext,
@@ -60,6 +61,7 @@ pub(crate) struct OverlayDemo {
     requested_mode: Option<InputMode>,
     error: Option<String>,
     corner_markers: bool,
+    visibility_policy: VisibilityPolicy,
     margins: OverlayMargins,
     margin_inputs: [Entity<InputState>; 4],
     margin_error: Option<String>,
@@ -100,6 +102,7 @@ impl OverlayDemo {
             requested_mode: None,
             error: None,
             corner_markers: false,
+            visibility_policy: VisibilityPolicy::default(),
             margins: OverlayMargins::default(),
             margin_inputs: std::array::from_fn(|_| {
                 cx.new(|cx| InputState::new(window, cx).default_value("0"))
@@ -207,6 +210,7 @@ impl OverlayDemo {
         let opened = overlay::open_window(
             host,
             OverlayOptions {
+                visibility_policy: self.visibility_policy,
                 margins: self.margins,
                 owner: self.owner,
                 input_mode: InputMode::Passthrough,
@@ -293,6 +297,21 @@ impl OverlayDemo {
                 Err(error) => self.error = Some(error.to_string()),
             }
         }
+        cx.notify();
+    }
+    fn toggle_visibility_policy(&mut self, cx: &mut Context<Self>) {
+        let next = match self.visibility_policy {
+            VisibilityPolicy::FollowHost => VisibilityPolicy::ForegroundOnly,
+            VisibilityPolicy::ForegroundOnly => VisibilityPolicy::FollowHost,
+        };
+        if let Some(active) = &self.active
+            && let Err(error) = active.set_visibility_policy(next, cx)
+        {
+            self.error = Some(error.to_string());
+            cx.notify();
+            return;
+        }
+        self.visibility_policy = next;
         cx.notify();
     }
     fn apply_margins(&mut self, cx: &mut Context<Self>) {
@@ -396,6 +415,7 @@ impl Render for OverlayDemo {
             .on_action(cx.listener(|view, _: &AttachSelected, _, cx| view.attach_selected(cx)))
             .on_action(cx.listener(|view, _: &DetachHost, _, cx| view.detach(cx)))
             .on_action(cx.listener(|view, _: &ToggleMode, _, cx| view.toggle_mode(cx)))
+            .on_action(cx.listener(|view, _: &ToggleVisibilityPolicy, _, cx| view.toggle_visibility_policy(cx)))
             .on_action(
                 cx.listener(|view, _: &ToggleCornerMarkers, _, cx| view.toggle_corner_markers(cx)),
             )
@@ -410,7 +430,7 @@ impl Render for OverlayDemo {
             .child(
                 div()
                     .text_sm()
-                    .child("Overlay 随宿主层级显示；失焦不隐藏，其他窗口可遮挡。点击交互内容可带宿主一起前置。"),
+                    .child("Overlay 随宿主层级显示，其他窗口可遮挡；可配置失焦隐藏。点击交互内容可带宿主一起前置。"),
             )
             .child(
                 h_flex().gap_2().child(Input::new(&self.filter)).child(
@@ -510,7 +530,7 @@ impl Render for OverlayDemo {
                     ),
             )
             .child(
-                Button::new("overlay-corner-markers")
+                    Button::new("overlay-corner-markers")
                     .label(if self.corner_markers {
                         "四角定位标记：开"
                     } else {
@@ -519,6 +539,14 @@ impl Render for OverlayDemo {
                     .on_click(|_, window, cx| {
                         window.dispatch_action(Box::new(ToggleCornerMarkers), cx)
                     }),
+            )
+            .child(
+                Button::new("overlay-visibility-policy")
+                    .label(match self.visibility_policy {
+                        VisibilityPolicy::FollowHost => "失焦隐藏：关（跟随宿主可见性）",
+                        VisibilityPolicy::ForegroundOnly => "失焦隐藏：开（宿主或 Overlay 在前台）",
+                    })
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleVisibilityPolicy), cx)),
             )
             .child(
                 div()
@@ -637,6 +665,7 @@ mod tests {
                         crate::overlay::open_window(
                             HostWindowId::fixture(78),
                             OverlayOptions {
+                                visibility_policy: Default::default(),
                                 margins: Default::default(),
                                 owner: owner.into(),
                                 input_mode: InputMode::Interactive,
@@ -851,6 +880,49 @@ mod tests {
                 Some(expected)
             );
         }
+        cx.dispatch_action(DetachHost);
+        tick(cx);
+    }
+
+    #[gpui_kit::test]
+    fn visibility_option_applies_live_and_survives_reattach(cx: &mut TestAppContext) {
+        let (view, cx, backend) = setup(cx);
+        backend
+            .background
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        cx.dispatch_action(SelectNext);
+        cx.dispatch_action(AttachSelected);
+        tick(cx);
+        assert_eq!(
+            view.read_with(cx, |view, _| view.visibility_policy),
+            VisibilityPolicy::FollowHost
+        );
+        cx.update(|window, app| window.click("overlay-visibility-policy", app));
+        tick(cx);
+        assert_eq!(
+            view.read_with(cx, |view, _| view
+                .snapshot
+                .as_ref()
+                .map(|s| (s.visibility_policy, s.hidden_reason))),
+            Some((
+                VisibilityPolicy::ForegroundOnly,
+                Some(overlay::HiddenReason::Background)
+            ))
+        );
+        cx.dispatch_action(DetachHost);
+        tick(cx);
+        cx.dispatch_action(AttachSelected);
+        tick(cx);
+        assert_eq!(
+            view.read_with(cx, |view, _| view
+                .snapshot
+                .as_ref()
+                .map(|s| s.visibility_policy)),
+            Some(VisibilityPolicy::ForegroundOnly)
+        );
+        cx.update(|window, app| window.click("overlay-visibility-policy", app));
+        tick(cx);
+        assert!(!backend.hidden.load(std::sync::atomic::Ordering::SeqCst));
         cx.dispatch_action(DetachHost);
         tick(cx);
     }

@@ -123,6 +123,51 @@ pub(super) fn cloaked(hwnd: HWND) -> bool {
     }
 }
 
+pub(super) fn foreground_matches(id: HostWindowId, overlay: HWND) -> bool {
+    // SAFETY: read-only foreground query; identity was sampled by the caller.
+    foreground_in_group(
+        unsafe { GetForegroundWindow() },
+        HWND(id.raw() as *mut _),
+        overlay,
+    )
+}
+
+pub(super) fn foreground_in_group(foreground: HWND, host: HWND, overlay: HWND) -> bool {
+    // SAFETY: read-only queries, called after host identity validation on the
+    // overlay thread. Native ownership is observed, never created or modified.
+    unsafe {
+        if foreground.is_invalid() {
+            return false;
+        }
+        let mut current = foreground;
+        for _ in 0..64 {
+            if current == host || current == overlay {
+                return true;
+            }
+            let Ok(owner) = GetWindow(current, GW_OWNER) else {
+                break;
+            };
+            if owner.is_invalid() {
+                break;
+            }
+            current = owner;
+        }
+        // Preserve the existing input-method exception without treating every
+        // GPUI window on this thread (e.g. the Demo controller) as foreground.
+        let thread = GetWindowThreadProcessId(overlay, None);
+        if thread == 0 || GetWindowThreadProcessId(foreground, None) != thread {
+            return false;
+        }
+        let mut class = [0u16; 128];
+        let len = GetClassNameW(foreground, &mut class).max(0) as usize;
+        class[..len].iter().copied().eq("IME".encode_utf16())
+            || class[..len]
+                .iter()
+                .copied()
+                .eq("MSCTFIME UI".encode_utf16())
+    }
+}
+
 pub(super) fn sample(id: HostWindowId, _overlay: Option<HWND>, sequence: u64) -> HostSnapshot {
     let _dpi = DpiScope::enter();
     let hwnd = HWND(id.raw as *mut _);

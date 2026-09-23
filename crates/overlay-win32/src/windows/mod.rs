@@ -161,6 +161,7 @@ impl WindowBinding {
         host: crate::HostWindowId,
         sequence: u64,
         margins: crate::OverlayMargins,
+        visibility_policy: crate::VisibilityPolicy,
     ) -> Result<crate::HostSnapshot, Error> {
         if !self.usable() {
             return Err(Error::from_hresult(E_HANDLE));
@@ -180,6 +181,12 @@ impl WindowBinding {
         let _dpi = host::DpiScope::enter();
         self.callback.dirty.set(false);
         let mut state = host::sample(host, Some(self.hwnd), sequence).with_margins(margins);
+        if visibility_policy == crate::VisibilityPolicy::ForegroundOnly
+            && state.visibility_reason.is_none()
+            && !host::foreground_matches(host, self.hwnd)
+        {
+            state.visibility_reason = Some(crate::HiddenReason::Background);
+        }
         match self.present(host, &mut state) {
             Ok(()) => self.order_failed = false,
             Err(error) if self.usable() => {

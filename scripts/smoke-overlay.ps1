@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components", "dpi", "margins", "presentation")]
+    [ValidateSet("all", "lifecycle", "input", "geometry", "fallback", "ime", "components", "dpi", "margins", "presentation", "visibility")]
     [string]$Suite = "all"
 )
 
@@ -50,6 +50,7 @@ function Invoke-OverlayProbe {
             $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_PRESENTATION_OCCLUSION_OK") -and $stdout.Contains("PROBE_PRESENTATION_FIRST_CLICK_OK") -and $stdout.Contains("PROBE_PRESENTATION_CAPTION_OK")
         }
         if ($Mode -eq "--caption") { $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_PRESENTATION_CAPTION_OK") }
+        if ($Mode.Contains("--visibility")) { $inputVerified = $stdout.Contains("PROBE_REAL_INPUT_OK") -and $stdout.Contains("PROBE_FOREGROUND_POLICY_OK") -and $stdout.Contains("PROBE_PRESENTATION_CAPTION_OK") }
         if ($Mode -eq "--fallback") {
             $inputVerified = $stdout.Contains("PROBE_FALLBACK_OK") -and $stdout -match 'OVERLAY_DROPPED_EVENTS=[1-9][0-9]*'
         }
@@ -73,6 +74,10 @@ try {
     if ($Suite -in @("all", "presentation")) {
         Invoke-OverlayProbe -Mode "--presentation" -Marker "PROBE_CONTENT_INPUT_OK" -TimeoutSeconds 15
         Invoke-OverlayProbe -Mode "--caption" -Marker "OVERLAY_NATIVE_SMOKE_OK" -TimeoutSeconds 15
+    }
+    if ($Suite -in @("all", "visibility")) {
+        Invoke-OverlayProbe -Mode "--visibility" -Marker "OVERLAY_NATIVE_SMOKE_OK" -TimeoutSeconds 15
+        Invoke-OverlayProbe -Mode "--visibility --interactive" -Marker "PROBE_CONTENT_INPUT_OK" -TimeoutSeconds 15
     }
     if ($Suite -in @("all", "margins")) {
         foreach ($mode in @("--margins", "--margins --interactive")) {

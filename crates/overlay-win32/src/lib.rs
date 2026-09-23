@@ -40,6 +40,15 @@ pub enum InputMode {
     Interactive,
 }
 
+/// Visibility is independent of HUD/Interactive input and host-relative order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VisibilityPolicy {
+    #[default]
+    FollowHost,
+    /// Host, overlay or their native owned windows must be foreground.
+    ForegroundOnly,
+}
+
 /// Physical screen coordinates. Right/bottom are exclusive.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PhysicalRect {
@@ -134,6 +143,7 @@ impl std::error::Error for OverlayError {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HiddenReason {
+    Background,
     OrderUnavailable,
     Minimized,
     Invisible,

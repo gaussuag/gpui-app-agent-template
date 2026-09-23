@@ -64,6 +64,7 @@ impl WindowBinding {
         _: HostWindowId,
         _: u64,
         _: OverlayMargins,
+        _: VisibilityPolicy,
     ) -> Result<HostSnapshot, NativeError> {
         Err(NativeError)
     }

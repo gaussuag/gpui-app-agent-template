@@ -86,6 +86,9 @@ impl Drop for Occluder {
 }
 impl Occluder {
     pub fn start(host: HWND, overlay: HWND) -> Result<Self, String> {
+        Self::start_with_visibility(host, overlay, true)
+    }
+    fn start_with_visibility(host: HWND, overlay: HWND, visible: bool) -> Result<Self, String> {
         // SAFETY: synchronous fixture-only command, never a user/production host.
         unsafe {
             let raw = SendMessageW(host, CREATE_OCCLUDER, None, None).0;
@@ -103,13 +106,14 @@ impl Occluder {
             if GetForegroundWindow() != this.hwnd {
                 return Err("environment: controlled occluder could not obtain foreground".into());
             }
-            if !IsWindowVisible(overlay).as_bool()
-                || !above(this.hwnd, overlay)
-                || !above(overlay, host)
+            if IsWindowVisible(overlay).as_bool() != visible
+                || (visible && (!above(this.hwnd, overlay) || !above(overlay, host)))
             {
                 return Err("inactive overlay did not remain visible beneath the occluder and above its host".into());
             }
-            println!("PROBE_PRESENTATION_OCCLUSION_OK");
+            if visible {
+                println!("PROBE_PRESENTATION_OCCLUSION_OK");
+            }
             Ok(this)
         }
     }
@@ -168,6 +172,9 @@ pub(super) fn verify_caption(
         if GetForegroundWindow() != expected {
             return Err("environment: controlled caption setup could not obtain foreground".into());
         }
+        if !IsWindowVisible(overlay).as_bool() {
+            return Err("overlay must stay visible while host or overlay is foreground".into());
+        }
         let mut outer = RECT::default();
         GetWindowRect(host, &mut outer).map_err(|e| e.to_string())?;
         let mut client = POINT::default();
@@ -209,4 +216,21 @@ pub(super) fn verify_caption(
         println!("PROBE_PRESENTATION_CAPTION_OK");
         Ok(())
     }
+}
+
+pub(super) fn verify_foreground_policy(host: HWND, overlay: HWND) -> Result<(), String> {
+    let _occluder = Occluder::start_with_visibility(host, overlay, false)?;
+    // SAFETY: activate only our controlled fixture host; no user window/input.
+    unsafe {
+        let _ = SetForegroundWindow(host);
+        std::thread::sleep(Duration::from_millis(350));
+        if GetForegroundWindow() != host {
+            return Err("environment: controlled host could not regain foreground".into());
+        }
+        if !IsWindowVisible(overlay).as_bool() || !above(overlay, host) {
+            return Err("foreground policy did not restore overlay above host".into());
+        }
+    }
+    println!("PROBE_FOREGROUND_POLICY_OK");
+    Ok(())
 }

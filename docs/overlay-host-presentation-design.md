@@ -19,7 +19,7 @@ Overlay 在视觉、遮挡和交互上接近宿主内嵌内容。实现与实际
 普通跟随只移动 Overlay 自己；**真实用户点击交互 Overlay** 才允许一次宿主层级协调。
 不通过定时激活、全局置顶、原生 owner、SetParent 或 AttachThreadInput 模拟内嵌。
 
-目标是：失焦仍显示，其他应用自然遮住宿主与 Overlay；点击露出的 Overlay 内容，
+默认目标是：失焦仍显示，其他应用自然遮住宿主与 Overlay；点击露出的 Overlay 内容，
 宿主也随之进入前面的视觉组合，原始点击和后续键盘输入仍交给 Overlay。
 这里“宿主一起前置”指视觉层级，不表示两个独立窗口可以同时持有前台或键盘焦点。
 游戏若在失焦时暂停、停止渲染或改变输入策略，需要游戏自身配合；本方案不伪造 WM_ACTIVATE。
@@ -84,16 +84,18 @@ Overlay 在视觉、遮挡和交互上接近宿主内嵌内容。实现与实际
 
 ## 4. 三种 Interface 设计与选择
 
-**A：保持业务调用不变，整体升级跟随语义（推荐）。**
-`OverlayOptions { owner, input_mode, margins }` 不增加层级、激活或计时参数；
+**A：整体升级跟随语义（默认行为）。**
+`OverlayOptions { owner, input_mode, margins, visibility_policy }` 不增加层级、激活或计时参数；
 `open_window/update/set_input_mode/set_margins/close/observe` 继续使用。
 Depth 来自一次附着获得完整协调能力；Locality 集中在 native Module。
 现有 `owner` 仍只是本应用生命周期窗口，不设置原生 GWLP_HWNDPARENT，不承担宿主层级关系。
 
-**B：增加 `HostRelative / ForegroundOnly` 策略。**
-可保留旧产品行为，但多一套显隐与交互组合、测试矩阵和迁移负担。
-若以后有真实 HUD 用户要求失焦隐藏再增加；本次需求已明确内嵌目标，不先保留永久兼容开关。
-即使增加策略，也不应允许业务随意组合 visibility/topmost/activation 三个互相矛盾的布尔值。
+**B：显隐策略（2026-09-23 用户要求，现已加入）。**
+`VisibilityPolicy::FollowHost` 默认保持 A 的行为；`ForegroundOnly` 可选失焦隐藏。
+`set_visibility_policy` 支持原会话动态切换，HUD/Interactive 均适用；宿主、Overlay、
+二者原生 owned 窗口或 Overlay 输入法辅助窗口在前台时保持显示，其他情况隐藏。
+具体优先级与接口见 [spec](overlay-gpui-spec.md)。这仅是显隐策略，不能改变
+topmost/activation 规则；不建立原生 ownership，也不把所有同进程窗口当作宿主。
 
 **C：增加显式宿主协作 Adapter。**
 由游戏 UI 线程执行带期限、代际和确认的用户前置请求，执行前拒绝失效意图。

@@ -13,6 +13,88 @@ struct Content {
 }
 
 #[gpui_kit::test]
+fn visibility_policy_switches_without_events_and_keeps_content(cx: &mut TestAppContext) {
+    let (owner, host, backend) = setup(cx);
+    backend.background.store(true, Ordering::SeqCst);
+    let overlay = open(cx, owner, host);
+    tick(cx);
+    let content = cx
+        .update(|cx| overlay.content(cx))
+        .unwrap_or_else(|e| panic!("{e}"));
+    for mode in [InputMode::Passthrough, InputMode::Interactive] {
+        assert!(cx.update(|cx| overlay.set_input_mode(mode, cx)).is_ok());
+        for policy in [
+            VisibilityPolicy::ForegroundOnly,
+            VisibilityPolicy::FollowHost,
+        ] {
+            assert!(
+                cx.update(|cx| overlay.set_visibility_policy(policy, cx))
+                    .is_ok()
+            );
+            tick(cx);
+            let state = cx
+                .update(|cx| overlay.snapshot(cx))
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(state.visibility_policy, policy);
+            assert_eq!(state.input_mode, mode);
+            assert_eq!(
+                state.hidden_reason,
+                (policy == VisibilityPolicy::ForegroundOnly).then_some(HiddenReason::Background)
+            );
+            assert_eq!(
+                backend.hidden.load(Ordering::SeqCst),
+                policy == VisibilityPolicy::ForegroundOnly
+            );
+            assert_eq!(
+                content.entity_id(),
+                cx.update(|cx| overlay.content(cx))
+                    .unwrap_or_else(|e| panic!("{e}"))
+                    .entity_id()
+            );
+            let revision = state.revision;
+            assert!(
+                cx.update(|cx| overlay.set_visibility_policy(policy, cx))
+                    .is_ok()
+            );
+            tick(cx);
+            assert_eq!(
+                cx.update(|cx| overlay.snapshot(cx))
+                    .unwrap_or_else(|e| panic!("{e}"))
+                    .revision,
+                revision
+            );
+        }
+    }
+    // Other visibility reasons retain priority, regardless of foreground policy.
+    let mut sample = backend.sample(host, 2);
+    sample.visibility_reason = Some(HiddenReason::Minimized);
+    backend.submit(sample);
+    assert!(
+        cx.update(|cx| overlay.set_visibility_policy(VisibilityPolicy::ForegroundOnly, cx))
+            .is_ok()
+    );
+    tick(cx);
+    assert_eq!(
+        cx.update(|cx| overlay.snapshot(cx))
+            .unwrap_or_else(|e| panic!("{e}"))
+            .hidden_reason,
+        Some(HiddenReason::Minimized)
+    );
+    backend.background.store(false, Ordering::SeqCst);
+    backend.submit(backend.sample(host, 3));
+    tick(cx);
+    assert!(!backend.hidden.load(Ordering::SeqCst));
+    assert!(cx.update(|cx| overlay.close(cx)).is_ok());
+    tick(cx);
+    assert_eq!(
+        cx.update(|cx| overlay.set_visibility_policy(VisibilityPolicy::FollowHost, cx))
+            .err()
+            .map(|e| e.kind),
+        Some(ErrorKind::SessionClosed)
+    );
+}
+
+#[gpui_kit::test]
 fn modal_suspension_keeps_visibility_mode_and_content_and_releases_capture(
     cx: &mut TestAppContext,
 ) {
@@ -198,6 +280,7 @@ fn hide_show_and_mode_changes_keep_the_original_business_entity(cx: &mut TestApp
             open_window(
                 host,
                 OverlayOptions {
+                    visibility_policy: Default::default(),
                     margins: Default::default(),
                     owner: owner.into(),
                     input_mode: InputMode::Interactive,
@@ -316,6 +399,7 @@ fn open(
         open_window(
             host,
             OverlayOptions {
+                visibility_policy: Default::default(),
                 margins: Default::default(),
                 owner: owner.into(),
                 input_mode: InputMode::Interactive,
@@ -499,6 +583,7 @@ fn duplicate_attach_and_overlay_owner_are_rejected(cx: &mut TestAppContext) {
         open_window(
             host,
             OverlayOptions {
+                visibility_policy: Default::default(),
                 margins: Default::default(),
                 owner: owner.into(),
                 input_mode: InputMode::Interactive,
@@ -519,6 +604,7 @@ fn duplicate_attach_and_overlay_owner_are_rejected(cx: &mut TestAppContext) {
         open_window(
             HostWindowId::fixture(43),
             OverlayOptions {
+                visibility_policy: Default::default(),
                 margins: Default::default(),
                 owner: child_owner,
                 input_mode: InputMode::Interactive,
@@ -600,6 +686,7 @@ fn composition_cancel_does_not_also_leave_interactive_mode(cx: &mut TestAppConte
             open_window(
                 host,
                 OverlayOptions {
+                    visibility_policy: Default::default(),
                     margins: Default::default(),
                     owner: owner.into(),
                     input_mode: InputMode::Interactive,

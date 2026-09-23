@@ -10,7 +10,7 @@ mod window;
 pub use native_bridge::{
     ErrorKind, HiddenReason, HostInfo, HostList, HostWindowId, InputMode, OverlayError,
     OverlayMargins, PhysicalRect, PresentationDiagnostics, PresentationRecord, PromotionStatus,
-    RawHostHandle,
+    RawHostHandle, VisibilityPolicy,
 };
 pub use runtime::{init, prepare_quit};
 pub use types::*;

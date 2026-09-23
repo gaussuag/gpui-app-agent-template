@@ -5,6 +5,31 @@ Spec: [overlay-gpui-spec.md](overlay-gpui-spec.md). Baseline commit:
 
 ## Current status (2026-09-23)
 
+Configurable visibility is implemented at the user's request. `OverlayOptions`
+now takes `visibility_policy`; `VisibilityPolicy::FollowHost` is the default and
+preserves natural inactive occlusion. `ForegroundOnly` hides on unrelated/null
+foreground while retaining the host, overlay, their native owned windows and
+the overlay thread's IME helpers. `set_visibility_policy` applies asynchronously
+without rebuilding content or changing input mode; snapshots expose the applied
+value. The Demo's “失焦隐藏” button selects before attach, switches live and retains
+the selection on reattach. Nothing is persisted to disk.
+
+Verification: 36 app-ui tests and 8 native adapter tests passed, including live
+policy changes without host events, content/mode retention, repeated-set no-op,
+closed-session rejection, actual Demo button routing/reattach, native hidden/show
+for both modes, and nested owner versus sibling classification. A pre-existing
+native fixture assumption surfaced when IME helpers appeared above its host;
+the fixture now finds the actual topmost boundary before placement and asserts
+its topmost bit, retaining (not relaxing) the overlay band and idle checks.
+Strict Clippy and the x64 Demo build passed. The final `-Suite visibility` desktop
+smoke passed HUD and Interactive hide-on-third-window/restore-on-host checks,
+overlay foreground visibility, real input and complete cleanup; local log:
+`target/visibility-final-smoke.log`. Standards review: 0 findings. Spec review's
+owner-chain finding was corrected using bounded traversal and regression tests;
+final re-review: 0 remaining findings. No extra worker, activation or native owner
+binding was introduced. User visual/IME acceptance remains pending; unified and
+generated regression remain deferred as requested.
+
 Follow-up for the native-caption game host: immediate attach failure reproduced
 on the user's named host, with `SetWindowPos` returning ACCESS_DENIED (0x80070005)
 when its insertion anchor was the host's hidden foreign `IME` window. This is not

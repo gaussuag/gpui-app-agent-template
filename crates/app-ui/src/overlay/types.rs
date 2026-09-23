@@ -15,6 +15,7 @@ pub struct OverlaySnapshot {
     pub phase: OverlayPhase,
     pub host: HostWindowId,
     pub input_mode: InputMode,
+    pub visibility_policy: super::VisibilityPolicy,
     pub physical_client_rect: Option<PhysicalRect>,
     /// Actual inset overlay viewport, in screen physical pixels.
     pub physical_overlay_rect: Option<PhysicalRect>,
@@ -48,6 +49,7 @@ pub struct OverlayEvent {
 }
 
 pub struct OverlayOptions {
+    pub visibility_policy: super::VisibilityPolicy,
     pub margins: super::OverlayMargins,
     pub owner: gpui_kit::AnyWindowHandle,
     pub input_mode: InputMode,

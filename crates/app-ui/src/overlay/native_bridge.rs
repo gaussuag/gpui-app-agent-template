@@ -13,7 +13,7 @@ pub(super) use overlay_win32::HostSnapshot;
 pub use overlay_win32::{
     ErrorKind, HiddenReason, HostInfo, HostList, HostWindowId, InputMode, OverlayError,
     OverlayMargins, PhysicalRect, PresentationDiagnostics, PresentationRecord, PromotionStatus,
-    RawHostHandle,
+    RawHostHandle, VisibilityPolicy,
 };
 
 pub(super) fn failure(kind: ErrorKind, message: &str) -> OverlayError {
@@ -142,20 +142,25 @@ impl WindowBinding {
         host: HostWindowId,
         sequence: u64,
         margins: OverlayMargins,
+        visibility_policy: VisibilityPolicy,
     ) -> Result<HostSnapshot, OverlayError> {
         match self {
-            Self::Native(native) => {
-                native
-                    .apply_host(host, sequence, margins)
-                    .map_err(|error| OverlayError {
-                        kind: ErrorKind::TrackingFailed,
-                        native_code: Some(error.code().0),
-                        message: error.to_string(),
-                    })
-            }
+            Self::Native(native) => native
+                .apply_host(host, sequence, margins, visibility_policy)
+                .map_err(|error| OverlayError {
+                    kind: ErrorKind::TrackingFailed,
+                    native_code: Some(error.code().0),
+                    message: error.to_string(),
+                }),
             #[cfg(test)]
             Self::Simulated(backend) => {
-                let sample = backend.applied(host, sequence).with_margins(margins);
+                let mut sample = backend.applied(host, sequence).with_margins(margins);
+                if visibility_policy == VisibilityPolicy::ForegroundOnly
+                    && backend.background.load(std::sync::atomic::Ordering::SeqCst)
+                    && sample.visibility_reason.is_none()
+                {
+                    sample.visibility_reason = Some(HiddenReason::Background);
+                }
                 backend.hidden.store(
                     sample.visibility_reason.is_some(),
                     std::sync::atomic::Ordering::SeqCst,
@@ -272,6 +277,7 @@ pub(crate) mod testing {
         pub fail_start: Arc<AtomicBool>,
         pub fail_finish: Arc<AtomicBool>,
         pub hidden: Arc<AtomicBool>,
+        pub background: Arc<AtomicBool>,
         pending: Arc<Mutex<Option<HostSnapshot>>>,
         current: Arc<Mutex<Option<HostSnapshot>>>,
         pub(super) changed: Arc<Mutex<Option<ChangeSignal>>>,

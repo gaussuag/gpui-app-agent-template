@@ -9,6 +9,7 @@ pub(super) struct Session {
     pub owner: AnyWindowHandle,
     pub window: Option<AnyWindowHandle>,
     pub desired_margins: super::OverlayMargins,
+    pub desired_visibility_policy: super::VisibilityPolicy,
     pub desired_mode: InputMode,
     pub mode_revision: u64,
     pub task: Option<Task<()>>,

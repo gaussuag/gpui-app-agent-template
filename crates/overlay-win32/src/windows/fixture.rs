@@ -191,6 +191,9 @@ fn drive_probe(target: usize) -> bool {
     if std::env::args().any(|arg| arg == "--presentation") {
         command.arg("--presentation");
     }
+    if std::env::args().any(|arg| arg == "--visibility") {
+        command.arg("--foreground-only");
+    }
     if ime {
         command.arg("--ime");
     }
@@ -409,7 +412,8 @@ fn exercise_input(
     )?;
     let presentation = std::env::args().any(|arg| arg == "--presentation");
     let caption = std::env::args().any(|arg| arg == "--caption");
-    let occluder = if presentation || caption {
+    let visibility = std::env::args().any(|arg| arg == "--visibility");
+    let occluder = if presentation || caption || visibility {
         let mut owned = (child_pid, Vec::<HWND>::new());
         // SAFETY: enumerate only the GPUI child started by this fixture.
         unsafe {
@@ -431,6 +435,9 @@ fn exercise_input(
         if presentation {
             Some(super::presentation_input::Occluder::start(host, overlay)?)
         } else {
+            if visibility {
+                super::presentation_input::verify_foreground_policy(host, overlay)?;
+            }
             None
         }
     } else {

@@ -16,7 +16,7 @@
 
 - overlay 覆盖宿主客户区，标题栏和原生边框保留给宿主操作。
 - HUD 默认整窗鼠标穿透；交互模式用户点击后可获得键盘焦点。交互模式内的局部控件命中、其余区域跨进程穿透不纳入首版。
-- 宿主失焦仍显示，按宿主层级自然遮挡；最小化、隐藏、cloaked 或空区域才隐藏。宿主禁用时暂停 Overlay 交互。
+- 默认宿主失焦仍显示，按宿主层级自然遮挡；可配置仅前台时显示。最小化、隐藏、cloaked 或空区域始终隐藏。宿主禁用时暂停 Overlay 交互。
 - demo 同时只附着一个宿主；模块的会话互相独立，同一个宿主重复附着返回明确错误。
 
 这里的“附属”是行为关联，不是 `SetParent` 嵌入、不修改宿主样式、不向宿主注入 DLL。Discord 仅作为外观和体验参考；其客户端技术栈不作为游戏 overlay 实现机制的证据。
@@ -60,6 +60,8 @@
 
 原生位置和尺寸只由跟随器设置。最大化时取最大化后的客户区，不对 overlay 自身执行最大化；还原、Snap 和跨屏后重新采样。保留 GPUI 对大小和 DPI 消息的处理，DPI 建议矩形处理完成后再用宿主矩形收敛，避免两方循环争抢位置。
 
+以下表格使用默认 `VisibilityPolicy::FollowHost`：
+
 | 宿主情况 | overlay 结果 |
 |---|---|
 | 可见、非最小化、未 cloaked、客户区非空 | 匹配客户区并显示 |
@@ -71,6 +73,15 @@
 | 宿主销毁或身份失效 | 关闭 overlay，终止会话，demo 保留“宿主已关闭”及重新选择入口 |
 
 Overlay 只在宿主自身 topmost 时进入同一分组；普通宿主不全局置顶。不枚举遮挡矩形裁剪。被动跟随携带 NOACTIVATE 且只调整自身；真实用户点击允许一次异步宿主 Z-order 调整。已提交请求可能迟到，未提交请求在失效时取消，禁止周期激活或重试前置。独立跨进程窗口不保证原子无过渡帧。
+
+显隐策略与输入模式独立。`VisibilityPolicy::FollowHost` 为默认值；
+`ForegroundOnly` 额外要求前台为宿主、Overlay 或原生 owner 链归属于二者的窗口，
+同 Overlay 线程的 `IME` / `MSCTFIME UI` 输入辅助窗口也保留显示。其他应用、
+Demo 控制窗口或前台暂时为空时报告 `Background` 并隐藏；点击交互 Overlay 不会因此隐藏自身。
+最小化/隐藏/cloaked/空区域等原因优先。`set_visibility_policy` 无需宿主移动或重建内容，
+通过现有驱动异步应用；snapshot 的 `visibility_policy` 为已应用值。关闭后设置返回
+`SessionClosed`，重复设置不发新状态事件。策略不改变层级、焦点规则或输入模式。
+Demo 提供“失焦隐藏”开关，支持附着前选择、附着后切换和下一次附着沿用；不做磁盘持久化。
 
 ### 输入模式
 
@@ -135,10 +146,12 @@ Demo 提供上/右/下/左输入和“应用边距”，拒绝负数、非整数
 
 ```rust
 pub enum InputMode { Passthrough, Interactive }
+pub enum VisibilityPolicy { FollowHost, ForegroundOnly }
 
 pub struct OverlayOptions {
     pub owner: AnyWindowHandle, // 本应用普通窗口，非外部宿主
     pub input_mode: InputMode,
+    pub visibility_policy: VisibilityPolicy, // 默认 FollowHost
     pub margins: OverlayMargins, // 默认四边为 0 的非负整数逻辑像素
 }
 
@@ -164,6 +177,8 @@ impl<V: Render + 'static> OverlayWindow<V> {
         -> Result<(), OverlayError>;
     pub fn set_margins(&self, margins: OverlayMargins, cx: &mut App)
         -> Result<(), OverlayError>;
+    pub fn set_visibility_policy(&self, policy: VisibilityPolicy, cx: &mut App)
+        -> Result<(), OverlayError>;
     pub fn close(&self, cx: &mut App) -> Result<(), OverlayError>;
 }
 ```
@@ -173,7 +188,7 @@ impl<V: Render + 'static> OverlayWindow<V> {
 ```rust
 let overlay = overlay::open_window(
     host,
-    OverlayOptions { owner: window.window_handle(), input_mode: InputMode::Interactive, margins: OverlayMargins::default() },
+    OverlayOptions { owner: window.window_handle(), input_mode: InputMode::Interactive, margins: OverlayMargins::default(), visibility_policy: VisibilityPolicy::FollowHost },
     |window, cx| cx.new(|cx| BusinessPanel::new(window, cx)),
     cx,
 )?;

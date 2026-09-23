@@ -75,6 +75,23 @@ impl<V: Render + 'static> OverlayWindow<V> {
             Ok(())
         })
     }
+    /// Change visibility without recreating content or changing the input mode.
+    pub fn set_visibility_policy(
+        &self,
+        policy: VisibilityPolicy,
+        cx: &mut App,
+    ) -> Result<(), OverlayError> {
+        self.session.update(cx, |state, _| {
+            if !runtime::is_open(&state.snapshot.phase) {
+                return Err(session::closed());
+            }
+            if state.desired_visibility_policy != policy {
+                state.desired_visibility_policy = policy;
+                state.changed.notify();
+            }
+            Ok(())
+        })
+    }
     pub fn close(&self, cx: &mut App) -> Result<(), OverlayError> {
         self.session.update(cx, |state, cx| state.request_close(cx));
         Ok(())
@@ -117,6 +134,7 @@ pub fn open_window<V: Render + 'static>(
     let id = cx.global::<Runtime>().next_id;
     let session = cx.new(|_| Session {
         snapshot: OverlaySnapshot {
+            visibility_policy: options.visibility_policy,
             session_id: id,
             revision: 0,
             phase: OverlayPhase::Attaching,
@@ -136,6 +154,7 @@ pub fn open_window<V: Render + 'static>(
         window: None,
         desired_mode: options.input_mode,
         desired_margins: options.margins,
+        desired_visibility_policy: options.visibility_policy,
         mode_revision: 0,
         task: None,
         changed: ChangeSignal::default(),

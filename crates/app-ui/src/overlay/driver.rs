@@ -57,6 +57,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
         let mut applied_revision = None;
         let mut sequence = 0;
         let mut applied_margins = None;
+        let mut applied_visibility_policy = None;
         let mut saved_focus = None;
         let mut available = false;
         while failure.is_none() {
@@ -70,9 +71,10 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                     session.desired_mode,
                     session.mode_revision,
                     session.desired_margins,
+                    session.desired_visibility_policy,
                 )
             });
-            let Ok((phase, mode, revision, margins)) = request else {
+            let Ok((phase, mode, revision, margins, visibility_policy)) = request else {
                 break;
             };
             if !runtime::is_open(&phase) {
@@ -159,6 +161,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                 .map(|value| value.sampled_at)
                 .unwrap_or_else(std::time::Instant::now);
             let should_apply = update.is_some()
+                || applied_visibility_policy != Some(visibility_policy)
                 || applied_margins != Some(margins)
                 || native.presentation_changed();
             if let Some(update) = update {
@@ -170,13 +173,14 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                 }
             }
             if should_apply {
-                match native.apply_host(host, sequence, margins) {
+                match native.apply_host(host, sequence, margins, visibility_policy) {
                     Ok(actual) => {
                         if let Some(error) = actual.terminal {
                             failure = Some(error);
                             break;
                         }
                         applied_margins = Some(margins);
+                        applied_visibility_policy = Some(visibility_policy);
                         let now_available =
                             actual.visibility_reason.is_none() && !actual.input_suspended;
                         if available && !now_available {
@@ -202,6 +206,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             }
                             let ready = session.snapshot.phase == OverlayPhase::Attaching;
                             let changed = ready
+                                || session.snapshot.visibility_policy != visibility_policy
                                 || session.snapshot.margins != margins
                                 || session.snapshot.physical_overlay_rect
                                     != Some(actual.physical_overlay_rect)
@@ -216,6 +221,7 @@ pub(super) fn start(session: &Entity<Session>, cx: &mut App) {
                             session.snapshot.physical_overlay_rect =
                                 Some(actual.physical_overlay_rect);
                             session.snapshot.margins = margins;
+                            session.snapshot.visibility_policy = visibility_policy;
                             session.snapshot.hidden_reason = actual.visibility_reason;
                             session.snapshot.input_suspended = actual.input_suspended;
                             if changed {

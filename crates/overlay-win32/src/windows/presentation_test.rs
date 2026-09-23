@@ -103,15 +103,34 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             generation: 991,
         };
         let margins = crate::OverlayMargins::default();
-        let sample = binding.apply_host(id, 1, margins)?;
+        let sample = binding.apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_eq!(sample.visibility_reason, None);
         assert!(IsWindowVisible(own.0).as_bool());
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(visible_neighbor(own.0, GW_HWNDPREV), Some(third.0));
+        assert_ne!(foreground, own.0);
+        for mode in [InputMode::Passthrough, InputMode::Interactive] {
+            binding.set_mode(mode)?;
+            assert_eq!(
+                binding
+                    .apply_host(id, 1, margins, crate::VisibilityPolicy::ForegroundOnly)?
+                    .visibility_reason,
+                Some(crate::HiddenReason::Background)
+            );
+            assert!(!IsWindowVisible(own.0).as_bool());
+            assert_eq!(
+                binding
+                    .apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?
+                    .visibility_reason,
+                None
+            );
+            assert!(IsWindowVisible(own.0).as_bool());
+            assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
+        }
         POSITIONS.set(0);
         let writes_before_idle = binding.diagnostics().placement_writes;
         for _ in 0..64 {
-            binding.apply_host(id, 1, margins)?;
+            binding.apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?;
         }
         assert_eq!(
             POSITIONS.get(),
@@ -131,7 +150,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
         )?;
         // Same host sequence: local order invalidation must not be skipped.
-        binding.apply_host(id, 1, margins)?;
+        binding.apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(visible_neighbor(host.0, GW_HWNDNEXT), Some(third.0));
 
@@ -144,7 +163,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         SetWindowPos(host.0, Some(helper.0), 0, 0, 0, 0, flags)?;
         assert!(!IsWindowVisible(GetWindow(host.0, GW_HWNDPREV)?).as_bool());
         assert_eq!(visible_neighbor(host.0, GW_HWNDPREV), Some(third.0));
-        binding.apply_host(id, 1, margins)?;
+        binding.apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_eq!(
             GetWindow(own.0, GW_HWNDPREV)?,
             third.0,
@@ -159,12 +178,33 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         let flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE;
         SetWindowPos(boundary.0, Some(HWND_TOPMOST), 0, 0, 0, 0, flags)?;
         SetWindowPos(host.0, Some(HWND_TOP), 0, 0, 0, 0, flags)?;
-        let predecessor = GetWindow(host.0, GW_HWNDPREV)?;
+        // IME windows can sit immediately above the ordinary host. Locate the
+        // actual topmost boundary before positioning the controlled anchor;
+        // placing it after a normal IME window would demote our fixture.
+        let mut predecessor = GetWindow(host.0, GW_HWNDPREV)?;
+        for _ in 0..128 {
+            if GetWindowLongPtrW(predecessor, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 {
+                break;
+            }
+            predecessor = GetWindow(predecessor, GW_HWNDPREV)?;
+        }
+        assert_ne!(
+            GetWindowLongPtrW(predecessor, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+            0
+        );
         if predecessor != boundary.0 {
             SetWindowPos(boundary.0, Some(predecessor), 0, 0, 0, 0, flags)?;
         }
-        assert_eq!(GetWindow(host.0, GW_HWNDPREV)?, boundary.0);
-        assert_eq!(binding.apply_host(id, 1, margins)?.visibility_reason, None);
+        assert_ne!(
+            GetWindowLongPtrW(boundary.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+            0
+        );
+        assert_eq!(
+            binding
+                .apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?
+                .visibility_reason,
+            None
+        );
         assert_eq!(GetWindow(own.0, GW_HWNDPREV)?, boundary.0);
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         assert_eq!(
@@ -172,7 +212,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             0
         );
         let writes = binding.diagnostics().placement_writes;
-        binding.apply_host(id, 1, margins)?;
+        binding.apply_host(id, 1, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_eq!(binding.diagnostics().placement_writes, writes);
         drop(boundary);
 
@@ -185,7 +225,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             0,
             SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
         )?;
-        binding.apply_host(id, 2, margins)?;
+        binding.apply_host(id, 2, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_ne!(
             GetWindowLongPtrW(own.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
             0
@@ -194,7 +234,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
 
         let modal = window(Some(host.0))?;
         let _ = EnableWindow(host.0, false);
-        let sample = binding.apply_host(id, 3, margins)?;
+        let sample = binding.apply_host(id, 3, margins, crate::VisibilityPolicy::FollowHost)?;
         assert!(sample.input_suspended);
         assert!(!IsWindowEnabled(own.0).as_bool());
         assert_eq!(visible_neighbor(own.0, GW_HWNDPREV), Some(modal.0));
@@ -205,7 +245,11 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             "mode changes must retain modal suspension"
         );
         let _ = EnableWindow(host.0, true);
-        assert!(!binding.apply_host(id, 4, margins)?.input_suspended);
+        assert!(
+            !binding
+                .apply_host(id, 4, margins, crate::VisibilityPolicy::FollowHost)?
+                .input_suspended
+        );
         assert!(IsWindowEnabled(own.0).as_bool());
         drop(modal);
 
@@ -218,7 +262,7 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
             0,
             SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
         )?;
-        binding.apply_host(id, 5, margins)?;
+        binding.apply_host(id, 5, margins, crate::VisibilityPolicy::FollowHost)?;
         assert_eq!(
             GetWindowLongPtrW(own.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
             0
@@ -226,15 +270,36 @@ fn passive_order_band_modal_and_idle_updates_use_the_real_binding() -> Result<()
         assert_eq!(visible_neighbor(own.0, GW_HWNDNEXT), Some(host.0));
         let _ = ShowWindow(host.0, SW_HIDE);
         assert_eq!(
-            binding.apply_host(id, 6, margins)?.visibility_reason,
+            binding
+                .apply_host(id, 6, margins, crate::VisibilityPolicy::FollowHost)?
+                .visibility_reason,
             Some(crate::HiddenReason::Invisible)
         );
         assert!(!IsWindowVisible(own.0).as_bool());
         let _ = ShowWindow(host.0, SW_SHOWNOACTIVATE);
-        assert_eq!(binding.apply_host(id, 7, margins)?.visibility_reason, None);
+        assert_eq!(
+            binding
+                .apply_host(id, 7, margins, crate::VisibilityPolicy::FollowHost)?
+                .visibility_reason,
+            None
+        );
         assert!(IsWindowVisible(own.0).as_bool());
         assert_eq!(GetForegroundWindow(), foreground);
     }
+    // The attached top-level host may itself be owned. A root-owner equality
+    // check would miss its dialogs or accidentally include its owner's siblings.
+    let outer = window(None)?;
+    let nested_host = window(Some(outer.0))?;
+    let dialog = window(Some(nested_host.0))?;
+    let sibling = window(Some(outer.0))?;
+    assert!(host::foreground_in_group(dialog.0, nested_host.0, own.0));
+    assert!(!host::foreground_in_group(sibling.0, nested_host.0, own.0));
+    assert!(host::foreground_in_group(own.0, nested_host.0, own.0));
+    assert!(!host::foreground_in_group(
+        HWND::default(),
+        nested_host.0,
+        own.0
+    ));
     binding.unbind()?;
     Ok(())
 }

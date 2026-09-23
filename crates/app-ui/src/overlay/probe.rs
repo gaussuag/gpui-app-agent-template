@@ -127,6 +127,12 @@ async fn exercise(
                 open_window(
                     host,
                     OverlayOptions {
+                        visibility_policy: if std::env::args().any(|arg| arg == "--foreground-only")
+                        {
+                            super::VisibilityPolicy::ForegroundOnly
+                        } else {
+                            super::VisibilityPolicy::FollowHost
+                        },
                         margins: if margins_probe {
                             OverlayMargins {
                                 top: 48,
