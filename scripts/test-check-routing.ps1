@@ -42,6 +42,38 @@ $global:LASTEXITCODE = if (Test-Path (Join-Path $PSScriptRoot '../fail-cargo')) 
     Assert-Calls @('cargo|build', 'check-product|', 'smoke|')
     & $gate -Group tests,tests
     Assert-Calls @('test|all')
+    # Exercise the actual hosted group selection; desktop scripts must not run.
+    $workflow = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../.github/workflows/ci.yml') -Raw
+    if ($workflow -notmatch 'run: \.\\scripts\\check\.ps1 -Group ([a-z,]+)') {
+        throw 'Hosted workflow must explicitly select desktop-independent check groups.'
+    }
+    $hostedGroups = $Matches[1].Split(',')
+    $hostedCalls = @('check-product|', 'cargo|fmt', 'cargo|clippy', 'check-architecture|',
+        'test|all', 'check-docs|', 'test-docs|', 'test-check-routing|',
+        'test-product-identity|', 'test-ui-dependencies|', 'cargo|build', 'check-product|')
+    & $gate -Group $hostedGroups
+    Assert-Calls $hostedCalls
+    if ($workflow -notmatch '(?m)^\s*run: \.\\scripts\\test-generated-project\.ps1 -SkipGui\s*$') {
+        throw 'Hosted generated-product checks must omit GUI acceptance.'
+    }
+    foreach ($guiOption in @('FullRegression', 'IncludeIme')) {
+        $options = @{ SkipGui = $true; $guiOption = $true }
+        $rejected = $false
+        try { & (Join-Path $PSScriptRoot 'test-generated-project.ps1') @options } catch {
+            if ($_.Exception.Message -notlike '*SkipGui cannot be combined*') { throw }
+            $rejected = $true
+        }
+        if (-not $rejected) { throw "SkipGui silently discarded $guiOption." }
+    }
+    Set-Content -LiteralPath (Join-Path $fixture 'fail-test') -Value 'fail'
+    $rejected = $false
+    try { & $gate -Group $hostedGroups } catch {
+        if ($_.Exception.Message -notlike '*injected test failure*') { throw }
+        $rejected = $true
+    }
+    if (-not $rejected) { throw 'Hosted checks accepted failing headless tests.' }
+    Assert-Calls @('check-product|', 'cargo|fmt', 'cargo|clippy', 'check-architecture|', 'test|all')
+    Remove-Item -LiteralPath (Join-Path $fixture 'fail-test')
     & $gate -Group overlay -IncludeIme
     Assert-Calls @('smoke-overlay|', 'smoke-overlay|ime')
     & $gate

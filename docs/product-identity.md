@@ -85,7 +85,8 @@ structure, and optionally PE resources. `scripts/test-generated-project.ps1`
 copies the repository to a path containing spaces, creates a Git repository,
 initializes a Unicode-named product with another icon, checks architecture,
 documentation, build and native startup, then builds release and inspects the PE.
-CI runs this isolated fixture after the full source-project gate. Use
+CI runs this isolated fixture with `-SkipGui` after desktop-independent source
+checks; native startup is local acceptance. Use
 `-FullRegression` when generation can change component behavior; `-IncludeIme`
 also selects full generated regression with real IME checks.
 

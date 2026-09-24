@@ -43,7 +43,8 @@ starts the component Demo. Select checks using [testing](testing-standard.md).
 All project scripts run from their own root; the foundation checker receives
 that root explicitly through the local wrapper.
 
-The full gate remains `scripts/check.ps1`, also used by CI. During development
+The full local gate remains `scripts/check.ps1`; CI selects desktop-independent
+groups and leaves GUI acceptance to the local Windows desktop. During development
 and feature handoff, select affected groups or focused tests. Initialization and
 build integration use `scripts/test-generated-project.ps1`, whose default checks
 the generated product's integration rather than repeating all component tests.

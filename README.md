@@ -139,8 +139,13 @@ This suite is included in the default full gate.
 See the [manual acceptance checklist](docs/overlay-manual-acceptance.md) for
 user feedback and outstanding display-environment verification.
 
-That command runs the complete integration gate. During development or feature
-handoff, select affected checks with `scripts/check.ps1 -Group docs,static,tests`
+That command runs the complete local integration gate on an unlocked Windows
+desktop. Hosted CI runs only `scripts/check.ps1 -Group docs,static,tests,build,validators`
+and `scripts/test-generated-project.ps1 -SkipGui`; real-window startup and Overlay
+GUI tests are local acceptance. CI success does not certify GUI behavior.
+Run `scripts/check.ps1 -Group startup,overlay` for focused local GUI acceptance.
+During development or feature handoff, select affected checks with
+`scripts/check.ps1 -Group docs,static,tests`
 or the focused commands below. See [check selection](docs/testing-standard.md).
 Generated-project verification defaults to initialization, build, startup and
 resource integration; `-FullRegression` retains the complete child gate.

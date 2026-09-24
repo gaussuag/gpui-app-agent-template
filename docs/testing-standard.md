@@ -17,10 +17,23 @@ evidence reuse and environment-blocked checks. This guide owns project commands.
 
 ## Commands and selection
 
-`scripts/check.ps1` defaults to the full gate; CI retains that entry. `-Group`
+`scripts/check.ps1` defaults to the full local gate. `-Group`
 accepts one or more groups, deduplicates shared steps, and reports only selected
 coverage. Use focused commands during development and affected groups at feature
 handoff. Integration/release requires the full gate and relevant manual acceptance.
+
+Hosted CI runs `scripts/check.ps1 -Group docs,static,tests,build,validators` and
+`scripts/test-generated-project.ps1 -SkipGui`. Core and GPUI headless tests remain
+required. Real-window startup and all native Overlay suites are local acceptance;
+there is currently no dedicated interactive runner. A green CI run establishes
+only the desktop-independent coverage, not GUI acceptance.
+
+On an unlocked Windows desktop, run `scripts/check.ps1 -Group startup,overlay`
+for local GUI acceptance (or `scripts/check.ps1` for the complete local gate).
+For template generation changes, also run `scripts/test-generated-project.ps1`
+locally. Record the tested commit, command, result and any environment blockers;
+follow the [Overlay manual checklist](overlay-manual-acceptance.md) for visual
+and display-specific acceptance. These scripts remain automated local tests.
 
 | Change / purpose | Command |
 |---|---|
@@ -50,6 +63,10 @@ build, native startup, reconfiguration and Release resources. Component behavior
 is already covered in the source project. Use `-FullRegression` when generation
 can affect that behavior; `-IncludeIme` also selects full generated regression.
 Initialized products skip this template-only fixture based on binary identity.
+
+The hosted `-SkipGui` option omits native startup while preserving initialization,
+architecture, docs, builds and resource checks; it rejects `-FullRegression` and
+`-IncludeIme` combinations so GUI work cannot be silently discarded.
 
 A new Overlay assertion alone does not require generated-project regression.
 After a gate failure, rerun affected groups and groups not yet reached. A changed

@@ -3,9 +3,9 @@
 ## Support tier
 
 Windows x64 with the MSVC toolchain is Tier 1 for this repository. Tier 1 means
-every change must compile in Windows CI, pass the automated native first-frame
-and last-window close smoke, and product releases must pass the specialized
-manual checklist on a supported Windows version.
+every change must compile in Windows CI, pass applicable local automated native
+first-frame and last-window close smoke, and product releases must pass the
+specialized manual checklist on a supported Windows version.
 
 This is a repository-owned tier. GPUI is pre-1.0, so upstream backend presence
 or another application's Windows build is not sufficient evidence for this
@@ -82,10 +82,11 @@ Run it directly with:
 ```
 
 The canonical `scripts/check.ps1` builds the Windows target and then runs this
-smoke with `-SkipBuild`; CI therefore executes the same path.
+smoke with `-SkipBuild` for local acceptance. Hosted CI selects desktop-independent
+groups and does not execute this smoke.
 
-`scripts/smoke-overlay.ps1` also runs from the canonical gate. Its controlled
-external host records real system click/wheel delivery while a separate GPUI
+`scripts/smoke-overlay.ps1` also runs from the full local gate, outside hosted CI.
+Its controlled external host records real system click/wheel delivery while a separate GPUI
 process uses production overlay content. HUD and Interactive probes have
 15-second deadlines, require a visible frame, and require complete cleanup.
 Each input batch checks the foreground and target process; an unavailable or

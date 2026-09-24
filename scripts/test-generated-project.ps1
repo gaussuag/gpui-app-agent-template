@@ -1,7 +1,10 @@
 [CmdletBinding()]
-param([switch]$FullRegression, [switch]$IncludeIme)
+param([switch]$FullRegression, [switch]$IncludeIme, [switch]$SkipGui)
 
 $ErrorActionPreference = "Stop"
+if ($SkipGui -and ($FullRegression -or $IncludeIme)) {
+    throw "SkipGui cannot be combined with FullRegression or IncludeIme; run GUI acceptance locally."
+}
 $sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Import-Module (Join-Path $PSScriptRoot "product-identity.psm1") -Force
 $sourceIdentity = Get-ProductIdentity -Root $sourceRoot
@@ -85,9 +88,11 @@ try {
             Write-Host "==> run generated repository full regression"
             & .\scripts\check.ps1 -IncludeIme:$IncludeIme
         } else {
-            Write-Host "==> verify generated docs, architecture, build, resources and startup"
+            Write-Host "==> verify generated docs, architecture, build and resources"
             & .\scripts\check-architecture.ps1
-            & .\scripts\check.ps1 -Group docs,build,startup
+            $groups = @("docs", "build")
+            if (-not $SkipGui) { $groups += "startup" }
+            & .\scripts\check.ps1 -Group $groups
         }
 
         & git add --all
@@ -155,3 +160,4 @@ finally {
 }
 
 Write-Host "Generated repository passed initialization, integration, residual, and release-resource checks."
+if ($SkipGui) { Write-Host "GUI acceptance NOT RUN: run scripts/test-generated-project.ps1 locally on an unlocked Windows desktop." }

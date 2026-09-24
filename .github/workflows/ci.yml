@@ -30,10 +30,10 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
-      - name: Run repository gate
+      - name: Run checks without a desktop
         shell: pwsh
-        run: .\scripts\check.ps1
+        run: .\scripts\check.ps1 -Group docs,static,tests,build,validators
 
       - name: Verify generated product fixture
         shell: pwsh
-        run: .\scripts\test-generated-project.ps1
+        run: .\scripts\test-generated-project.ps1 -SkipGui
