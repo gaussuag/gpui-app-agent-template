@@ -82,9 +82,12 @@ Dispatch its typed Action and observe state or Events. Use Kit's
 
 Advance asynchronous work explicitly with the deterministic executor. Observe
 pending state before completion, then the result; exercise stale/cancel/drop
-paths when affected. Avoid wall-clock sleeps, public network, user files and
-unbounded waits. Introduce fake clocks or I/O adapters for real dependencies,
-not a parallel implementation of product behavior.
+paths when affected. For result-driven UI changes, cover slow A / fast B,
+late failure and completion after reset where applicable. Observe affected
+production entities' content, loading and errors, not only the core store.
+Avoid wall-clock sleeps, public network, user files and unbounded waits.
+Use the [foundation seam criteria](../agent-foundation/engineering.md) for fake
+clocks or I/O adapters; keep product behavior in the production implementation.
 
 Checkers that change acceptance need positive and negative fixtures proving
 the intended requirement. Keep fixtures isolated from user data and Git

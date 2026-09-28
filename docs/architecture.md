@@ -15,8 +15,9 @@ no hypothetical adapter because its dependencies are in-process and pure.
 
 `app-ui` is the GPUI Kit adapter. It owns entities, windows, the application-level
 last-window exit policy, render projection, and task/subscription lifetimes.
-Product filesystem, database, HTTP, or device integrations should introduce a
-seam only when a production adapter and a test adapter both exist.
+Product filesystem, database, HTTP, or device integrations follow the
+[foundation seam criteria](../agent-foundation/engineering.md). The Overlay
+native bridge's Native/Simulated adapters provide a concrete example.
 
 `desktop` is process glue and the product identity owner. Its Cargo manifest and
 build script produce an immutable launch identity plus static Windows resources;
@@ -39,8 +40,8 @@ input callback
   -> render reads a new Snapshot
 ```
 
-Render is repeatable and side-effect free. It never starts work, reads files,
-waits on channels, sleeps, or acquires long-lived locks.
+The render and scheduling contract is in
+[GPUI execution rules](agent-development-standard.md#gpui-execution).
 
 ## Lifecycle ledger
 
@@ -101,8 +102,6 @@ provides deterministic window-creation failure injection.
   main-window close request and must exit within the process deadline.
   Specialized visual, DPI, accessibility, and installer evidence remains
   separately named.
-- Introduce a deterministic fake clock/filesystem/backend only when the real
-  production dependency varies; do not expose internal seams solely for tests.
 
 The normative layer/scenario/evidence rules are in
 [the automated testing standard](testing-standard.md).

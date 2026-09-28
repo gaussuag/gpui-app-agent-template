@@ -54,7 +54,11 @@ component harnesses. Runtime application code does not enable test-support.
 
 ## Upgrade procedure
 
-1. Create a dependency-only branch and read the target registry manifests.
+1. Create a dependency-only branch. Verify the target registry version is
+   published and not yanked; inspect its published manifests and source for API
+   compatibility rather than relying on repository main, tags or README examples.
+   Record the verification date and selected compatibility pair in the upgrade
+   evidence. This lookup applies to upgrades, not every local check.
 2. Update Kit's exact requirement and the reviewed snapshot declaration together.
 3. Resolve dependencies and pin the reviewed backend, for example:
    `cargo update -p gpui-pre-platform --precise 0.3.5` for this baseline.

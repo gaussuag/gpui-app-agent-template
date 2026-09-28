@@ -18,11 +18,15 @@ operations stay in `overlay-win32/src/windows`, called through the UI native bri
 
 - Use APIs from the locked dependency source and current working examples.
   Upstream main and remembered GPUI APIs may target another version.
-- Render projects prepared state. External I/O, heavy work, blocking waits and
-  task creation belong outside render and outside the foreground action path.
-- Background work takes suitable owned inputs and returns results. Commit
-  UI-observable changes through a valid GPUI context after checking both owner
-  liveness and request revision/key. Liveness alone does not establish relevance.
+- Render is a repeatable, side-effect-free projection of prepared state and
+  never starts tasks. Action handlers may perform lightweight state transitions
+  and start or replace owned tasks.
+  External I/O, heavy work and blocking waits execute off the foreground thread.
+  Trace the actual work body; async syntax or a Task return type does not prove
+  background execution.
+- Background work takes suitable owned inputs and returns results. Route results
+  through a valid GPUI context to the state owner's acceptance logic, following
+  [foundation async rules](../agent-foundation/engineering.md).
 - Keep equivalent keyboard, menu and pointer intents on one Action/handler.
   Retain Subscriptions in their owners and preserve focus routing/restoration.
 - Notify after state changes. Add coalescing or finer invalidation when actual
