@@ -17,7 +17,7 @@ license = "MIT"
 [workspace.dependencies]
 app-core = { path = "crates/app-core" }
 app-ui = { path = "crates/app-ui" }
-gpui-kit = { version = "=0.6.4", default-features = false, features = ["component", "assets"] }
+gpui-kit = { version = "=0.7.1", default-features = false, features = ["component", "assets"] }
 toml = { version = "=0.8.23" }
 winresource = { version = "=0.1.31" }
 
