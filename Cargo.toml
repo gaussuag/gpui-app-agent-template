@@ -19,7 +19,7 @@ app-core = { path = "crates/app-core" }
 app-ui = { path = "crates/app-ui" }
 gpui-kit = { version = "=0.6.4", default-features = false, features = ["component", "assets"] }
 toml = { version = "=0.8.23" }
-winresource = { version = "=0.1.31" }
+winresource = { version = "=0.1.34" }
 
 # Kit 0.6.4's inspector API requires the 0.3.5 snapshot. This is checked
 # against Cargo.lock by check-architecture.ps1; see ADR 0007.
